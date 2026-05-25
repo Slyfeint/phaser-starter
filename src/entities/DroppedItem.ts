@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import type { ItemDef } from '../systems/ItemDefs'
 
-const RARITY_TINTS = { common: 0xffffff, rare: 0x4488ff, epic: 0xaa44ff }
+const RARITY_TINTS: Record<string, number> = { common: 0xffffff, uncommon: 0x44cc44, rare: 0x4488ff, epic: 0xaa44ff, legendary: 0xff9900 }
 
 export class DroppedItem extends Phaser.Physics.Arcade.Sprite {
   readonly itemDef: ItemDef

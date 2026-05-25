@@ -1,9 +1,14 @@
 export const TILE_WALL = 1
 export const TILE_FLOOR = 2
+export const TILE_STAIRS = 3
 
 export interface Room {
   x: number; y: number; w: number; h: number
   cx: number; cy: number
+}
+
+export interface HazardSpawn {
+  x: number; y: number; type: 'fire_pit' | 'spike_trap' | 'dart_turret'
 }
 
 export interface DungeonData {
@@ -11,20 +16,37 @@ export interface DungeonData {
   rooms: Room[]
   cols: number
   rows: number
+  bossRoomIdx: number
+  stairsRoomIdx: number
+  shopRoomIdx: number
+  minibossRoomIdx: number
+  hazards: HazardSpawn[]
 }
 
 function ri(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-export function generateDungeon(cols: number, rows: number): DungeonData {
+function buildTunnel(tiles: number[][], r1: Room, r2: Room) {
+  const mnx = Math.min(r1.cx, r2.cx), mxx = Math.max(r1.cx, r2.cx)
+  for (let tx = mnx; tx <= mxx; tx++) tiles[r1.cy][tx] = TILE_FLOOR
+  const mny = Math.min(r1.cy, r2.cy), mxy = Math.max(r1.cy, r2.cy)
+  for (let ty = mny; ty <= mxy; ty++) tiles[ty][r2.cx] = TILE_FLOOR
+}
+
+export function generateDungeon(
+  cols: number, rows: number,
+  floor = 1, isBossFloor = false
+): DungeonData {
   const tiles = Array.from({ length: rows }, () => new Array<number>(cols).fill(TILE_WALL))
   const rooms: Room[] = []
 
-  for (let attempt = 0; attempt < 100 && rooms.length < 10; attempt++) {
+  const maxRooms = isBossFloor ? 8 : 10
+  const minRooms = 5
+
+  for (let attempt = 0; attempt < 150 && rooms.length < maxRooms; attempt++) {
     const w = ri(5, 12), h = ri(4, 9)
     const x = ri(2, cols - w - 2), y = ri(2, rows - h - 2)
-
     const overlaps = rooms.some(r =>
       x <= r.x + r.w + 1 && x + w + 1 >= r.x &&
       y <= r.y + r.h + 1 && y + h + 1 >= r.y
@@ -38,20 +60,61 @@ export function generateDungeon(cols: number, rows: number): DungeonData {
     const cx = Math.floor(x + w / 2)
     const cy = Math.floor(y + h / 2)
 
-    if (rooms.length > 0) {
-      const prev = rooms[rooms.length - 1]
-      // Horizontal leg then vertical leg
-      const mnx = Math.min(prev.cx, cx), mxx = Math.max(prev.cx, cx)
-      for (let tx = mnx; tx <= mxx; tx++) tiles[prev.cy][tx] = TILE_FLOOR
-      const mny = Math.min(prev.cy, cy), mxy = Math.max(prev.cy, cy)
-      for (let ty = mny; ty <= mxy; ty++) tiles[ty][cx] = TILE_FLOOR
-    }
-
+    if (rooms.length > 0) buildTunnel(tiles, rooms[rooms.length - 1], { x, y, w, h, cx, cy })
     rooms.push({ x, y, w, h, cx, cy })
   }
 
-  // Retry if too few rooms were carved
-  if (rooms.length < 4) return generateDungeon(cols, rows)
+  if (rooms.length < minRooms) return generateDungeon(cols, rows, floor, isBossFloor)
 
-  return { tiles, rooms, cols, rows }
+  const bossRoomIdx = rooms.length - 1
+  const stairsRoomIdx = rooms.length >= 3 ? rooms.length - 2 : 0
+
+  // Shop room: random mid-dungeon room (not start, not boss, not stairs)
+  const midRooms = rooms.slice(1, rooms.length - 2)
+  const shopRoomIdx = midRooms.length > 0
+    ? 1 + Math.floor(Math.random() * midRooms.length)
+    : 0
+
+  // Miniboss room: different mid room from shop
+  let minibossRoomIdx = -1
+  if (!isBossFloor && midRooms.length > 1) {
+    const candidates = []
+    for (let i = 1; i < rooms.length - 2; i++) {
+      if (i !== shopRoomIdx) candidates.push(i)
+    }
+    if (candidates.length > 0) {
+      minibossRoomIdx = candidates[Math.floor(Math.random() * candidates.length)]
+    }
+  }
+
+  // Place stairs tile in stairs room
+  const sr = rooms[stairsRoomIdx]
+  tiles[sr.cy][sr.cx] = TILE_STAIRS
+
+  // Hazards: placed on floor tiles in non-special rooms
+  const hazards: HazardSpawn[] = []
+  const specialRooms = new Set([0, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx])
+  const hazardTypes: HazardSpawn['type'][] = ['fire_pit', 'spike_trap', 'dart_turret']
+
+  const hazardCount = 3 + floor * 2
+  const candidates: [number, number][] = []
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (tiles[row][col] !== TILE_FLOOR) continue
+      const inSpecial = rooms.some((r, idx) =>
+        specialRooms.has(idx) &&
+        col >= r.x && col < r.x + r.w &&
+        row >= r.y && row < r.y + r.h
+      )
+      if (!inSpecial) candidates.push([col, row])
+    }
+  }
+
+  const shuffled = candidates.sort(() => Math.random() - 0.5)
+  for (let i = 0; i < Math.min(hazardCount, shuffled.length); i++) {
+    const [col, row] = shuffled[i]
+    hazards.push({ x: col, y: row, type: hazardTypes[i % hazardTypes.length] })
+  }
+
+  return { tiles, rooms, cols, rows, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx, hazards }
 }

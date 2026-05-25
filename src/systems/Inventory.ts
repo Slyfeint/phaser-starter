@@ -1,8 +1,8 @@
 import type { EquipSlot, SlotType, ItemDef } from './ItemDefs'
+import { getScaledWeapon } from './ItemDefs'
 import type { WeaponDef } from './WeaponDefs'
-import { WEAPONS } from './WeaponDefs'
 
-export const SLOT_ORDER: EquipSlot[] = ['weapon1', 'weapon2', 'helm', 'chest', 'legs', 'gloves', 'ring', 'necklace']
+export const SLOT_ORDER: EquipSlot[] = ['weapon1','weapon2','helm','chest','legs','gloves','ring','necklace']
 
 export interface EquipStats {
   maxHpBonus: number
@@ -31,15 +31,36 @@ export class Inventory {
         slot = 'weapon1'
       }
     } else {
-      slot = item.slotType as Exclude<SlotType, 'weapon'>
+      slot = item.slotType as Exclude<SlotType,'weapon'|'consumable'>
     }
     const prev = this.slots.get(slot) ?? null
     this.slots.set(slot, item)
     return prev
   }
 
-  get(slot: EquipSlot): ItemDef | undefined {
-    return this.slots.get(slot)
+  unequip(slot: EquipSlot): ItemDef | null {
+    const item = this.slots.get(slot) ?? null
+    this.slots.delete(slot)
+    return item
+  }
+
+  get(slot: EquipSlot): ItemDef | undefined { return this.slots.get(slot) }
+
+  getAll(): Array<[EquipSlot, ItemDef]> {
+    return SLOT_ORDER.map(s => [s, this.slots.get(s)!]).filter(([,v]) => v) as Array<[EquipSlot, ItemDef]>
+  }
+
+  serialize(): Record<string, ItemDef> {
+    const out: Record<string, ItemDef> = {}
+    for (const [s, item] of this.slots) out[s] = item
+    return out
+  }
+
+  deserialize(data: Record<string, ItemDef>) {
+    this.slots.clear()
+    for (const [s, item] of Object.entries(data)) {
+      this.slots.set(s as EquipSlot, item)
+    }
   }
 
   getStats(): EquipStats {
@@ -56,7 +77,7 @@ export class Inventory {
       if (item.bonusCrit)     s.critChance    += item.bonusCrit
       if (item.bonusLootMult) s.lootMult      *= item.bonusLootMult
       if ((slot === 'weapon1' || slot === 'weapon2') && item.weaponType) {
-        s[slot] = WEAPONS[item.weaponType]
+        s[slot] = getScaledWeapon(item)
       }
     }
     return s

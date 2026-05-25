@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { Inventory } from '../systems/Inventory'
+import { Bag } from '../systems/Bag'
 import { WEAPONS, type WeaponDef } from '../systems/WeaponDefs'
 import { getKey } from '../systems/KeyBindings'
 
@@ -9,6 +10,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   facingAngle = 0
 
   readonly inventory = new Inventory()
+  readonly bag = new Bag()
   activeSlot: 0 | 1 = 0
 
   private baseSpeed = 165
@@ -17,6 +19,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private rollCooldown = 0
   private readonly ROLL_CD = 1200
   private readonly ROLL_DURATION = 200
+
+  // Above-head HP display
+  private hpGfx!: Phaser.GameObjects.Graphics
+  private hpTimer = 0
+  private readonly HP_SHOW_MS = 2200
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private keys!: Record<string, Phaser.Input.Keyboard.Key>
@@ -31,6 +38,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this)
     this.setDepth(5)
     ;(this.body as Phaser.Physics.Arcade.Body).setSize(20, 24)
+    this.hpGfx = scene.add.graphics().setDepth(7)
   }
 
   get currentWeapon(): WeaponDef {
@@ -52,17 +60,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   get rolling(): boolean { return this.isRolling }
 
+  get atkCooldownRemaining(): number { return this.atkCooldown }
+
   setupInput(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!
     this.cursors = kb.createCursorKeys()
     this.keys = {
-      up:     kb.addKey(getKey('up', 'W')),
-      down:   kb.addKey(getKey('down', 'S')),
-      left:   kb.addKey(getKey('left', 'A')),
-      right:  kb.addKey(getKey('right', 'D')),
+      up:     kb.addKey(getKey('up',     'W')),
+      down:   kb.addKey(getKey('down',   'S')),
+      left:   kb.addKey(getKey('left',   'A')),
+      right:  kb.addKey(getKey('right',  'D')),
       attack: kb.addKey(getKey('attack', 'SPACE')),
-      roll:   kb.addKey(getKey('roll', 'Q')),
-      swap:   kb.addKey(getKey('swap', 'F')),
+      roll:   kb.addKey(getKey('roll',   'Q')),
+      swap:   kb.addKey(getKey('swap',   'F')),
     }
   }
 
@@ -105,13 +115,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(this.ROLL_DURATION, () => { this.isRolling = false })
   }
 
-  swapWeapon() {
-    this.activeSlot = this.activeSlot === 0 ? 1 : 0
-  }
+  swapWeapon() { this.activeSlot = this.activeSlot === 0 ? 1 : 0 }
 
   update(delta: number) {
-    this.atkCooldown = Math.max(0, this.atkCooldown - delta)
+    this.atkCooldown  = Math.max(0, this.atkCooldown  - delta)
     this.rollCooldown = Math.max(0, this.rollCooldown - delta)
+
+    // Above-head HP display
+    if (this.hpTimer > 0) {
+      this.hpTimer -= delta
+      this.drawHpAboveHead()
+      if (this.hpTimer <= 0) this.hpGfx.clear()
+    }
 
     if (this.isRolling) return
 
@@ -145,10 +160,31 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number): boolean {
     if (this.isRolling) return false
-    const reduced = Math.round(amount * (1 - this.inventory.getStats().armor / 100))
+    const reduced = Math.max(1, Math.round(amount * (1 - this.inventory.getStats().armor / 100)))
     this.hp = Math.max(0, this.hp - reduced)
+    this.hpTimer = this.HP_SHOW_MS
     this.setTint(0xff3333)
     this.scene.time.delayedCall(200, () => this.hp > 0 && this.clearTint())
     return this.hp <= 0
+  }
+
+  heal(amount: number) {
+    this.hp = Math.min(this.effectiveMaxHp, this.hp + amount)
+    this.hpTimer = this.HP_SHOW_MS
+  }
+
+  private drawHpAboveHead() {
+    const pct = this.hp / this.effectiveMaxHp
+    const bw = 28
+    this.hpGfx.clear()
+    this.hpGfx.fillStyle(0x220000)
+    this.hpGfx.fillRect(this.x - bw / 2, this.y - 28, bw, 4)
+    this.hpGfx.fillStyle(pct > 0.5 ? 0x44ee44 : pct > 0.25 ? 0xeecc00 : 0xee2222)
+    this.hpGfx.fillRect(this.x - bw / 2, this.y - 28, bw * pct, 4)
+  }
+
+  destroy(fromScene = false) {
+    this.hpGfx?.destroy()
+    super.destroy(fromScene)
   }
 }

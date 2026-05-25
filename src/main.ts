@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Boot } from './scenes/Boot'
 import { Preload } from './scenes/Preload'
 import { MainMenu } from './scenes/MainMenu'
+import { LobbyScene } from './scenes/LobbyScene'
 import { DungeonScene } from './scenes/DungeonScene'
 import { GameOver } from './scenes/GameOver'
 import { SettingsScene } from './scenes/SettingsScene'
@@ -23,7 +24,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [Boot, Preload, MainMenu, DungeonScene, GameOver, SettingsScene],
+  scene: [Boot, Preload, MainMenu, LobbyScene, DungeonScene, GameOver, SettingsScene],
 }
 
 new Phaser.Game(config)
