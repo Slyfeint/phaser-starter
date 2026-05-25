@@ -487,6 +487,14 @@ export class DungeonScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     if (this.gameEnding) return
 
+    // Check death before UI guards — enemy delayedCalls fire even while inventory/shop is open
+    if (this.player.hp <= 0) {
+      if (this.inventoryUI.isOpen()) this.inventoryUI.toggle(this.player)
+      if (this.shopUI.isOpen()) this.shopUI.close()
+      this.endGame(false)
+      return
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.invKey)) {
       if (this.shopUI.isOpen()) this.shopUI.close()
       this.inventoryUI.toggle(this.player)
@@ -545,8 +553,6 @@ export class DungeonScene extends Phaser.Scene {
       )
       this.nearShop = dist < 80
     }
-
-    if (this.player.hp <= 0) this.endGame(false)
 
     const cd = this.player.attackCooldownMax > 0
       ? Math.min(1, this.player.atkCooldownRemaining / this.player.attackCooldownMax)
