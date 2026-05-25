@@ -97,6 +97,7 @@ export class DungeonScene extends Phaser.Scene {
     this.minimap = new Minimap(this, this.dungeon, miniRoomIdx)
 
     this.events.on('player-attack', this.processAttack, this)
+    this.events.on('player-dead', () => { if (!this.gameEnding) this.endGame(false) })
     this.events.on('boss-spawned', (name: string) => this.hud.showBossBar(name))
     this.events.on('boss-hp', (pct: number) => this.hud.updateBossBar(pct))
     this.events.on('boss-defeated', this.handleBossDefeated, this)
@@ -250,7 +251,9 @@ export class DungeonScene extends Phaser.Scene {
     if (this.boss) this.physics.add.collider(this.boss, this.doorGroup)
 
     this.physics.add.overlap(this.player, this.lootGroup, (_p, loot) => {
+      if (this.gameEnding) return
       const l = loot as Loot
+      if (!l.active) return
       this.score += Math.round(l.value * this.player.inventory.getStats().lootMult)
       l.destroy()
     })
@@ -406,6 +409,7 @@ export class DungeonScene extends Phaser.Scene {
 
   private advanceFloor() {
     this.gameEnding = true
+    this.physics.world.pause()
     const runState: RunState = {
       hp: this.player.hp,
       score: this.score,
@@ -415,12 +419,15 @@ export class DungeonScene extends Phaser.Scene {
     this.registry.set('runState', runState)
     this.registry.set('currentFloor', this.floor + 1)
     this.player.setVelocity(0, 0)
-    this.time.delayedCall(500, () => this.scene.restart())
+    this.cameras.main.fadeOut(500, 0, 0, 0)
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart())
   }
 
   private endGame(victory: boolean) {
+    if (this.gameEnding) return
     this.gameEnding = true
     this.player.setVelocity(0, 0)
+    this.physics.world.pause()
 
     const save = SaveManager.load()
     if (victory) {
@@ -441,8 +448,11 @@ export class DungeonScene extends Phaser.Scene {
     this.registry.remove('runState')
     this.registry.set('currentFloor', 1)
 
-    this.time.delayedCall(800, () =>
-      this.scene.start('GameOver', { score: this.score, victory, floor: this.floor, theme: this.theme }))
+    const { score, floor, theme } = this
+    this.cameras.main.fadeOut(700, 0, 0, 0)
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('GameOver', { score, victory, floor, theme })
+    })
   }
 
   private hasWallBetween(x1: number, y1: number, x2: number, y2: number): boolean {

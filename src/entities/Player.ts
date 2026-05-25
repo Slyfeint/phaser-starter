@@ -109,7 +109,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.atkCooldown = this.attackCooldownMax
     this.scene.events.emit('player-attack')
     this.setTint(0xffffaa)
-    this.scene.time.delayedCall(120, () => this.restoreCosmeticTint())
+    this.scene.time.delayedCall(120, () => { if (this.active) this.restoreCosmeticTint() })
   }
 
   triggerRoll() {
@@ -122,7 +122,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       Math.sin(this.facingAngle) * this.moveSpeed * 2.5,
     )
     this.scene.tweens.add({ targets: this, alpha: 0.3, duration: 55, yoyo: true, repeat: 3 })
-    this.scene.time.delayedCall(this.ROLL_DURATION, () => { this.isRolling = false })
+    this.scene.time.delayedCall(this.ROLL_DURATION, () => { if (this.active) this.isRolling = false })
   }
 
   swapWeapon() { this.activeSlot = this.activeSlot === 0 ? 1 : 0 }
@@ -173,7 +173,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - reduced)
     this.hpTimer = this.HP_SHOW_MS
     this.setTint(0xff3333)
-    this.scene.time.delayedCall(200, () => { if (this.hp > 0) this.restoreCosmeticTint() })
+    this.scene.time.delayedCall(200, () => { if (this.active && this.hp > 0) this.restoreCosmeticTint() })
+    if (this.hp <= 0) this.scene.events.emit('player-dead')
     return this.hp <= 0
   }
 
