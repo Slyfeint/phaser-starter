@@ -38,7 +38,7 @@ export class InventoryUI {
   private rebuild(player: Player) {
     const scene = this.scene
     const { width, height } = scene.scale
-    const pw = 370, ph = 350
+    const pw = 450, ph = 430
     const px = (width - pw) / 2
     const py = (height - ph) / 2
 
@@ -47,64 +47,127 @@ export class InventoryUI {
       return o
     }
 
-    add(scene.add.rectangle(px, py, pw, ph, 0x000000, 0.93).setOrigin(0).setScrollFactor(0).setDepth(50))
+    // Panel background
+    add(scene.add.rectangle(px, py, pw, ph, 0x000000, 0.95).setOrigin(0).setScrollFactor(0).setDepth(50))
     add(scene.add.rectangle(px + 1, py + 1, pw - 2, ph - 2, 0, 0)
-      .setOrigin(0).setScrollFactor(0).setDepth(50).setStrokeStyle(1, 0x00ffcc, 0.4))
-    add(scene.add.text(px + pw / 2, py + 8, 'INVENTORY  [I] close', { fontSize: '11px', color: '#00ffcc' })
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
+      .setOrigin(0).setScrollFactor(0).setDepth(50).setStrokeStyle(2, 0x00ffcc, 0.6))
 
-    add(scene.add.rectangle(px + pw / 2, py + 26, 1, ph - 32, 0x224433)
+    // Title
+    add(scene.add.text(px + pw / 2, py + 10, 'INVENTORY  [I] close', {
+      fontSize: '13px', color: '#00ffcc', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
+
+    // Divider
+    add(scene.add.rectangle(px + pw / 2, py + 32, 1, ph - 38, 0x224433)
       .setOrigin(0.5, 0).setScrollFactor(0).setDepth(50))
 
-    // Left: equipped gear
-    add(scene.add.text(px + pw * 0.25, py + 28, 'EQUIPPED', { fontSize: '8px', color: '#445566' })
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
+    // ── Left panel: equipped gear ──
+    add(scene.add.text(px + pw * 0.25, py + 34, 'EQUIPPED  (click to unequip)', {
+      fontSize: '9px', color: '#445566',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
 
     SLOT_ORDER.forEach((slot, i) => {
-      const sy = py + 42 + i * 36
-      add(scene.add.text(px + 10, sy, SLOT_LABELS[slot as EquipSlot], { fontSize: '7px', color: '#334455' })
-        .setScrollFactor(0).setDepth(51))
+      const sy = py + 50 + i * 44
+      const col = RARITY_COLOR
+
+      // Slot row background (clickable area)
+      const rowBg = add(scene.add.rectangle(px + 8, sy, pw / 2 - 16, 40, 0x111122, 0.6)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(50))
+
+      add(scene.add.text(px + 12, sy + 4, SLOT_LABELS[slot as EquipSlot], {
+        fontSize: '9px', color: '#334455',
+      }).setScrollFactor(0).setDepth(51))
+
       const item = player.inventory.get(slot as EquipSlot)
-      let str = '--'
-      let color = '#445566'
+
       if (item) {
-        str = item.name
-        if (item.bonusMaxHp)    str += ` +${item.bonusMaxHp}hp`
-        if (item.bonusArmor)    str += ` +${item.bonusArmor}arm`
-        if (item.bonusSpeed)    str += ` +${item.bonusSpeed}spd`
-        if (item.bonusCrit)     str += ` +${Math.round((item.bonusCrit ?? 0) * 100)}%crit`
-        color = RARITY_COLOR[item.rarity] ?? '#aaaaaa'
+        let str = item.name
+        const stats: string[] = []
+        if (item.bonusMaxHp)    stats.push(`+${item.bonusMaxHp}hp`)
+        if (item.bonusArmor)    stats.push(`+${item.bonusArmor}arm`)
+        if (item.bonusSpeed)    stats.push(`+${item.bonusSpeed}spd`)
+        if (item.bonusCrit)     stats.push(`+${Math.round((item.bonusCrit ?? 0) * 100)}%crit`)
+        if (stats.length) str += '  ' + stats.join(' ')
+
+        const itemColor = col[item.rarity] ?? '#aaaaaa'
+        const itemTxt = add(scene.add.text(px + 12, sy + 18, str, {
+          fontSize: '12px', color: itemColor,
+        }).setScrollFactor(0).setDepth(51))
+
+        // Make the row interactive for unequip
+        rowBg.setInteractive({ useHandCursor: true })
+        rowBg.on('pointerover', () => { rowBg.setFillStyle(0x223344, 0.8); itemTxt.setAlpha(0.8) })
+        rowBg.on('pointerout',  () => { rowBg.setFillStyle(0x111122, 0.6); itemTxt.setAlpha(1) })
+        rowBg.on('pointerdown', () => {
+          const unequipped = player.inventory.unequip(slot as EquipSlot)
+          if (unequipped) {
+            if (player.bag.canAdd(unequipped)) {
+              player.bag.add(unequipped)
+            }
+            // If bag is full, item is lost (rare edge case) — could improve later
+          }
+          this.close()
+          this.open = true
+          this.rebuild(player)
+        })
+      } else {
+        add(scene.add.text(px + 12, sy + 18, '--', { fontSize: '12px', color: '#333344' })
+          .setScrollFactor(0).setDepth(51))
       }
-      add(scene.add.text(px + 10, sy + 10, str, { fontSize: '10px', color })
-        .setScrollFactor(0).setDepth(51))
     })
 
-    // Right: bag
+    // ── Right panel: bag ──
     const bagUsed = player.bag.usedCells
-    add(scene.add.text(px + pw * 0.75, py + 28, `BAG  ${bagUsed}/${BAG_CAPACITY}`, { fontSize: '8px', color: '#445566' })
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
-    add(scene.add.text(px + pw * 0.75, py + 38, 'tap consumable to use', { fontSize: '7px', color: '#2a3a4a' })
-      .setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
+    const rpx = px + pw / 2 + 8
+
+    add(scene.add.text(rpx + (pw / 2 - 16) / 2, py + 34, `BAG  ${bagUsed}/${BAG_CAPACITY}`, {
+      fontSize: '9px', color: '#445566',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
+
+    add(scene.add.text(rpx + (pw / 2 - 16) / 2, py + 46, 'gear: click to equip  |  consumable: click to use', {
+      fontSize: '7px', color: '#2a3a4a',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
 
     const bagItems = player.bag.getAll()
     if (bagItems.length === 0) {
-      add(scene.add.text(px + pw / 2 + 8, py + 58, '(empty)', { fontSize: '10px', color: '#334455' })
+      add(scene.add.text(rpx, py + 62, '(empty)', { fontSize: '12px', color: '#334455' })
         .setScrollFactor(0).setDepth(51))
     } else {
       bagItems.forEach((item, i) => {
-        const sy = py + 52 + i * 26
-        const color = RARITY_COLOR[item.rarity] ?? '#aaaaaa'
-        const suffix = item.slotType === 'consumable' ? ' [use]' : ` (${item.bagSize})`
-        const txt = add(scene.add.text(px + pw / 2 + 8, sy, `${item.name}${suffix}`,
-          { fontSize: '10px', color }).setScrollFactor(0).setDepth(51)) as Phaser.GameObjects.Text
+        const sy = py + 58 + i * 34
+        const itemColor = RARITY_COLOR[item.rarity] ?? '#aaaaaa'
+        const isConsumable = item.slotType === 'consumable'
+        const suffix = isConsumable ? '  [use]' : `  [${item.rarity}]`
 
-        if (item.slotType === 'consumable') {
-          txt.setInteractive({ useHandCursor: true })
-          txt.on('pointerover', () => txt.setAlpha(0.7))
-          txt.on('pointerout',  () => txt.setAlpha(1))
-          txt.on('pointerdown', () => {
+        // Row background
+        const rowBg = add(scene.add.rectangle(rpx, sy, pw / 2 - 20, 30, 0x111122, 0.5)
+          .setOrigin(0, 0).setScrollFactor(0).setDepth(50))
+
+        const txt = add(scene.add.text(rpx + 6, sy + 8, `${item.name}${suffix}`, {
+          fontSize: '12px', color: itemColor,
+        }).setScrollFactor(0).setDepth(51)) as Phaser.GameObjects.Text
+
+        rowBg.setInteractive({ useHandCursor: true })
+        rowBg.on('pointerover', () => { rowBg.setFillStyle(0x223344, 0.8); txt.setAlpha(0.8) })
+        rowBg.on('pointerout',  () => { rowBg.setFillStyle(0x111122, 0.5); txt.setAlpha(1) })
+
+        if (isConsumable) {
+          rowBg.on('pointerdown', () => {
             const removed = player.bag.remove(i)
             if (removed?.healAmount) player.heal(removed.healAmount)
+            this.close()
+            this.open = true
+            this.rebuild(player)
+          })
+        } else {
+          rowBg.on('pointerdown', () => {
+            // Equip from bag: remove from bag, equip (displaced goes back to bag)
+            const bagItem = player.bag.remove(i)
+            if (!bagItem) return
+            const displaced = player.inventory.equipItem(bagItem)
+            if (displaced && player.bag.canAdd(displaced)) {
+              player.bag.add(displaced)
+            }
             this.close()
             this.open = true
             this.rebuild(player)

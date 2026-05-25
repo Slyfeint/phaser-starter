@@ -23,16 +23,16 @@ export class HUD {
     const { width, height } = scene.scale
 
     // HP bar (top left)
-    scene.add.rectangle(p + 80, p + 7, 160, 8, 0x440000).setScrollFactor(0).setDepth(20)
-    this.hpFill = scene.add.rectangle(p, p + 7, 160, 6, 0xee2222)
+    scene.add.rectangle(p + 80, p + 10, 160, 18, 0x220000).setScrollFactor(0).setDepth(20)
+    this.hpFill = scene.add.rectangle(p, p + 10, 160, 16, 0x44ee44)
       .setScrollFactor(0).setDepth(21).setOrigin(0, 0.5)
-    scene.add.text(p, p + 1, 'HP', { fontSize: '9px', color: '#ff8888' })
-      .setScrollFactor(0).setDepth(22)
-    this.hpText = scene.add.text(p + 166, p + 1, '', { fontSize: '9px', color: '#ff8888' })
-      .setScrollFactor(0).setDepth(22)
+    scene.add.text(p + 2, p + 3, 'HP', { fontSize: '11px', fontStyle: 'bold', color: '#ffaaaa' })
+      .setScrollFactor(0).setDepth(23)
+    this.hpText = scene.add.text(p + 165, p + 3, '', { fontSize: '10px', color: '#ffcccc' })
+      .setScrollFactor(0).setDepth(23).setOrigin(1, 0)
 
     // Gold / loot
-    this.lootLabel = scene.add.text(p, p + 22, 'Gold: 0', { fontSize: '13px', color: '#ffd700' })
+    this.lootLabel = scene.add.text(p, p + 28, 'Gold: 0', { fontSize: '13px', color: '#ffd700' })
       .setScrollFactor(0).setDepth(21)
 
     // Weapon slots (bottom left)
@@ -51,7 +51,7 @@ export class HUD {
     // Hint (bottom center)
     scene.add.text(
       width / 2, height - 8,
-      'WASD Move  SPACE/Tap Attack  Q Roll  F Swap  I Inventory  E Shop',
+      'WASD Move  SPACE Attack  Q Roll  F Swap  I Inventory  TAB Shop  E Door',
       { fontSize: '7px', color: '#2a3a4a' },
     ).setScrollFactor(0).setDepth(21).setOrigin(0.5)
 
@@ -100,7 +100,9 @@ export class HUD {
 
   update(player: Player, loot: number, atkCooldownPct: number) {
     const effMax = player.effectiveMaxHp
-    this.hpFill.width = Math.max(0, 160 * (player.hp / effMax))
+    const hpPct = player.hp / effMax
+    this.hpFill.width = Math.max(0, 160 * hpPct)
+    this.hpFill.fillColor = hpPct > 0.5 ? 0x44ee44 : hpPct > 0.25 ? 0xeecc00 : 0xee2222
     this.hpText.setText(`${player.hp}/${effMax}`)
     this.lootLabel.setText(`Gold: ${loot}`)
 

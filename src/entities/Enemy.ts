@@ -42,6 +42,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private timeAccum = 0
   private burstCooldown = 0
   private hpBar!: Phaser.GameObjects.Graphics
+  private _wallChecker?: (x1: number, y1: number, x2: number, y2: number) => boolean
 
   constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType = 'skeleton', miniboss = false, floor = 1) {
     super(scene, x, y, TEXTURE[type])
@@ -68,6 +69,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.hpBar = scene.add.graphics().setDepth(6)
+  }
+
+  setWallChecker(fn: (x1: number, y1: number, x2: number, y2: number) => boolean) {
+    this._wallChecker = fn
   }
 
   update(delta: number, player: Player) {
@@ -108,12 +113,24 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         if (!this.active) return
         const d2 = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
         if (d2 < this.stats.atkRange * 1.3) {
+          if (this._wallChecker?.(this.x, this.y, player.x, player.y)) return
+          this.showSwingArc(player)
           player.takeDamage(this.stats.dmg)
           this.setTint(0xff8800)
           this.scene.time.delayedCall(110, () => this.active && this.clearTint())
         }
       })
     }
+  }
+
+  private showSwingArc(player: Player) {
+    const gfx = this.scene.add.graphics().setDepth(9)
+    const ang = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
+    const sweep = Math.PI * 0.55
+    gfx.fillStyle(0xff8800, 0.6)
+    gfx.slice(this.x, this.y, 28, ang - sweep / 2, ang + sweep / 2, false)
+    gfx.fillPath()
+    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 200, onComplete: () => gfx.destroy() })
   }
 
   private updateErratic(dist: number, player: Player) {
@@ -127,7 +144,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     )
     if (dist < this.stats.atkRange && this.atkCooldown === 0) {
       this.atkCooldown = this.stats.atkCd
-      player.takeDamage(this.stats.dmg)
+      if (!this._wallChecker?.(this.x, this.y, player.x, player.y)) {
+        player.takeDamage(this.stats.dmg)
+      }
     }
   }
 
@@ -143,7 +162,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         this.setVelocity(0, 0)
         this.clearTint()
         const d2 = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
-        if (d2 < this.stats.atkRange * 1.5) player.takeDamage(this.stats.dmg)
+        if (d2 < this.stats.atkRange * 1.5 && !this._wallChecker?.(this.x, this.y, player.x, player.y)) {
+          player.takeDamage(this.stats.dmg)
+        }
       })
     }
   }
@@ -175,15 +196,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (!this.active) return
       this.clearTint()
       const d2 = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
-      if (d2 < dist * 1.2) player.takeDamage(this.stats.dmg)
+      if (d2 < dist * 1.2 && !this._wallChecker?.(this.x, this.y, player.x, player.y)) {
+        player.takeDamage(this.stats.dmg)
+      }
     })
   }
 
   private showAttackWarning() {
-    const warn = this.scene.add.text(this.x, this.y - 26, '!', {
-      fontSize: '18px', fontStyle: 'bold', color: '#ff4444',
-    }).setOrigin(0.5).setDepth(15)
-    this.scene.tweens.add({ targets: warn, y: warn.y - 12, alpha: 0, duration: 380, onComplete: () => warn.destroy() })
+    const warn = this.scene.add.text(this.x, this.y - 28, '!', {
+      fontSize: '24px', fontStyle: 'bold', color: '#ff2222', stroke: '#880000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(15).setScale(0.4)
+    this.scene.tweens.add({ targets: warn, scaleX: 1.2, scaleY: 1.2, duration: 120, ease: 'Back.Out',
+      onComplete: () => {
+        this.scene.tweens.add({ targets: warn, y: warn.y - 14, alpha: 0, duration: 300, onComplete: () => warn.destroy() })
+      }
+    })
   }
 
   takeDamage(amount: number, knockbackAngle = 0, knockbackForce = 0): boolean {

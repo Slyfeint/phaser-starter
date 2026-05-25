@@ -13,6 +13,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   readonly bag = new Bag()
   activeSlot: 0 | 1 = 0
 
+  private _cosmeticTint = 0xffffff
   private baseSpeed = 165
   private atkCooldown = 0
   private isRolling = false
@@ -20,7 +21,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly ROLL_CD = 1200
   private readonly ROLL_DURATION = 200
 
-  // Above-head HP display
   private hpGfx!: Phaser.GameObjects.Graphics
   private hpTimer = 0
   private readonly HP_SHOW_MS = 2200
@@ -59,8 +59,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get rolling(): boolean { return this.isRolling }
-
   get atkCooldownRemaining(): number { return this.atkCooldown }
+
+  setCosmeticTint(tint: number) {
+    this._cosmeticTint = tint
+    if (tint !== 0xffffff) this.setTint(tint)
+    else this.clearTint()
+  }
+
+  private restoreCosmeticTint() {
+    if (this._cosmeticTint !== 0xffffff) this.setTint(this._cosmeticTint)
+    else this.clearTint()
+  }
 
   setupInput(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!
@@ -99,7 +109,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.atkCooldown = this.attackCooldownMax
     this.scene.events.emit('player-attack')
     this.setTint(0xffffaa)
-    this.scene.time.delayedCall(120, () => this.clearTint())
+    this.scene.time.delayedCall(120, () => this.restoreCosmeticTint())
   }
 
   triggerRoll() {
@@ -109,7 +119,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body
     body.setVelocity(
       Math.cos(this.facingAngle) * this.moveSpeed * 2.5,
-      Math.sin(this.facingAngle) * this.moveSpeed * 2.5
+      Math.sin(this.facingAngle) * this.moveSpeed * 2.5,
     )
     this.scene.tweens.add({ targets: this, alpha: 0.3, duration: 55, yoyo: true, repeat: 3 })
     this.scene.time.delayedCall(this.ROLL_DURATION, () => { this.isRolling = false })
@@ -121,7 +131,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.atkCooldown  = Math.max(0, this.atkCooldown  - delta)
     this.rollCooldown = Math.max(0, this.rollCooldown - delta)
 
-    // Above-head HP display
     if (this.hpTimer > 0) {
       this.hpTimer -= delta
       this.drawHpAboveHead()
@@ -164,7 +173,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - reduced)
     this.hpTimer = this.HP_SHOW_MS
     this.setTint(0xff3333)
-    this.scene.time.delayedCall(200, () => this.hp > 0 && this.clearTint())
+    this.scene.time.delayedCall(200, () => { if (this.hp > 0) this.restoreCosmeticTint() })
     return this.hp <= 0
   }
 
@@ -175,12 +184,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private drawHpAboveHead() {
     const pct = this.hp / this.effectiveMaxHp
-    const bw = 28
+    const bw = 30
     this.hpGfx.clear()
     this.hpGfx.fillStyle(0x220000)
-    this.hpGfx.fillRect(this.x - bw / 2, this.y - 28, bw, 4)
+    this.hpGfx.fillRect(this.x - bw / 2, this.y - 30, bw, 5)
     this.hpGfx.fillStyle(pct > 0.5 ? 0x44ee44 : pct > 0.25 ? 0xeecc00 : 0xee2222)
-    this.hpGfx.fillRect(this.x - bw / 2, this.y - 28, bw * pct, 4)
+    this.hpGfx.fillRect(this.x - bw / 2, this.y - 30, bw * pct, 5)
   }
 
   destroy(fromScene = false) {

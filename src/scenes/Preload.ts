@@ -27,6 +27,8 @@ export class Preload extends Phaser.Scene {
     this.makeStairs()
     this.makeShopIcon()
     this.makeItemIcons()
+    this.makeDoors()
+    this.makeTorch()
     this.scene.start('MainMenu')
   }
 
@@ -48,119 +50,210 @@ export class Preload extends Phaser.Scene {
   private makePlayer() {
     const c = this.textures.createCanvas('player', T, T)!
     const ctx = c.getContext()
-    ctx.fillStyle = '#112244'; ctx.fillRect(8, 14, 16, 14)
+    // Cape (behind body)
+    ctx.fillStyle = '#551111'; ctx.fillRect(7, 13, 4, 16); ctx.fillRect(21, 13, 4, 16)
+    // Body/torso
     ctx.fillStyle = '#2244aa'; ctx.fillRect(10, 14, 12, 12)
-    ctx.fillStyle = '#334488'; ctx.fillRect(9, 6, 14, 10)
-    ctx.fillStyle = '#6633aa'; ctx.fillRect(11, 9, 10, 4)
-    ctx.fillStyle = '#ccccdd'; ctx.fillRect(23, 8, 2, 18)
+    ctx.fillStyle = '#1a3380'; ctx.fillRect(10, 14, 3, 12); ctx.fillRect(19, 14, 3, 12)
+    // Belt
+    ctx.fillStyle = '#886622'; ctx.fillRect(10, 22, 12, 2)
+    ctx.fillStyle = '#ffcc44'; ctx.fillRect(14, 22, 4, 2)
+    // Legs
+    ctx.fillStyle = '#1a3366'; ctx.fillRect(10, 26, 5, 5); ctx.fillRect(17, 26, 5, 5)
+    ctx.fillStyle = '#334488'; ctx.fillRect(10, 29, 5, 3); ctx.fillRect(17, 29, 5, 3)
+    // Helmet
+    ctx.fillStyle = '#778899'; ctx.fillRect(9, 4, 14, 10)
+    ctx.fillStyle = '#99aabb'; ctx.fillRect(10, 5, 12, 7)
+    // Visor slit
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(11, 9, 10, 2)
+    ctx.fillStyle = '#ff4400'; ctx.fillRect(12, 9, 4, 2); ctx.fillRect(18, 9, 2, 2)
+    // Helmet plume
+    ctx.fillStyle = '#cc2222'; ctx.fillRect(14, 1, 4, 5)
+    ctx.fillStyle = '#ff4444'; ctx.fillRect(15, 0, 2, 3)
+    // Shield (left arm)
+    ctx.fillStyle = '#445577'; ctx.fillRect(3, 14, 6, 10)
+    ctx.fillStyle = '#6688aa'; ctx.fillRect(4, 15, 4, 8)
+    ctx.fillStyle = '#aabbcc'; ctx.fillRect(5, 17, 2, 4)
+    // Sword (right arm)
+    ctx.fillStyle = '#ccccdd'; ctx.fillRect(24, 8, 2, 18)
     ctx.fillStyle = '#aaaacc'; ctx.fillRect(20, 15, 8, 2)
     ctx.fillStyle = '#886622'; ctx.fillRect(24, 24, 2, 4)
-    ctx.fillStyle = '#1a3366'
-    ctx.fillRect(10, 26, 5, 4); ctx.fillRect(17, 26, 5, 4)
     c.refresh()
   }
 
   private makeEnemies() {
-    // Skeleton
+    // Skeleton — skull sockets, ribs, bony limbs
     const cs = this.textures.createCanvas('enemy_skeleton', T, T)!
     const s = cs.getContext()
-    s.fillStyle = '#d0ccbb'
-    s.fillRect(11, 4, 10, 10); s.fillRect(12, 14, 8, 10)
+    s.fillStyle = '#d0ccbb'; s.fillRect(11, 3, 10, 11); s.fillRect(12, 14, 8, 10)
     s.fillStyle = '#b0aaaa'
     s.fillRect(7, 14, 5, 10); s.fillRect(20, 14, 5, 10)
-    s.fillRect(11, 24, 4, 7); s.fillRect(17, 24, 4, 7)
-    s.fillStyle = '#ff2222'; s.fillRect(13, 7, 3, 3); s.fillRect(18, 7, 3, 3)
-    s.fillStyle = '#1a1a2a'; s.fillRect(13, 12, 6, 2)
+    s.fillRect(11, 24, 4, 8); s.fillRect(17, 24, 4, 8)
+    // Skull eye sockets
+    s.fillStyle = '#222222'; s.fillRect(12, 6, 4, 4); s.fillRect(17, 6, 4, 4)
+    // Skull nose
+    s.fillStyle = '#888877'; s.fillRect(15, 11, 2, 2)
+    // Teeth
+    s.fillStyle = '#ffffff'; s.fillRect(12, 13, 2, 2); s.fillRect(15, 13, 2, 2); s.fillRect(18, 13, 2, 2)
+    // Ribs
+    s.fillStyle = '#c0bcaa'
+    for (let i = 0; i < 3; i++) { s.fillRect(13, 16 + i * 3, 6, 2) }
     cs.refresh()
 
-    // Orc
+    // Orc — tusks, heavy body, angry brow
     const co = this.textures.createCanvas('enemy_orc', T, T)!
     const o = co.getContext()
     o.fillStyle = '#2d6622'; o.fillRect(7, 4, 18, 14)
-    o.fillStyle = '#1e4418'; o.fillRect(5, 18, 22, 14)
+    o.fillStyle = '#1e4418'; o.fillRect(5, 18, 22, 12)
     o.fillStyle = '#2d6622'
-    o.fillRect(2, 18, 7, 12); o.fillRect(23, 18, 7, 12)
-    o.fillRect(7, 32, 8, 4); o.fillRect(17, 32, 8, 4)
+    o.fillRect(2, 18, 7, 10); o.fillRect(23, 18, 7, 10)
+    o.fillRect(7, 28, 8, 4); o.fillRect(17, 28, 8, 4)
+    // Eyes
     o.fillStyle = '#ff6600'; o.fillRect(10, 8, 5, 4); o.fillRect(17, 8, 5, 4)
-    o.fillStyle = '#f0d090'; o.fillRect(11, 16, 3, 5); o.fillRect(18, 16, 3, 5)
+    o.fillStyle = '#ff2200'; o.fillRect(11, 9, 3, 2); o.fillRect(18, 9, 3, 2)
+    // Brow ridge
+    o.fillStyle = '#1a3a10'; o.fillRect(9, 7, 6, 2); o.fillRect(17, 7, 6, 2)
+    // Tusks (protruding below)
+    o.fillStyle = '#f0d090'; o.fillRect(11, 16, 3, 7); o.fillRect(18, 16, 3, 7)
+    o.fillStyle = '#ffe0a0'; o.fillRect(12, 17, 1, 5); o.fillRect(19, 17, 1, 5)
+    // Club/weapon hand hint
+    o.fillStyle = '#884400'; o.fillRect(26, 14, 4, 14); o.fillRect(24, 14, 6, 3)
     co.refresh()
 
-    // Bat
+    // Bat — membrane wings, fangs, ears
     const cb = this.textures.createCanvas('enemy_bat', T, T)!
     const b = cb.getContext()
-    b.fillStyle = '#331122'
-    b.fillRect(6, 14, 6, 8); b.fillRect(20, 14, 6, 8); b.fillRect(12, 12, 8, 12)
-    b.fillStyle = '#220e18'
-    b.fillRect(2, 10, 8, 6); b.fillRect(22, 10, 8, 6)
-    b.fillRect(4, 6, 4, 6); b.fillRect(24, 6, 4, 6)
-    b.fillStyle = '#ff4466'; b.fillRect(13, 14, 3, 3); b.fillRect(18, 14, 3, 3)
-    b.fillStyle = '#ffaacc'; b.fillRect(14, 21, 2, 3); b.fillRect(18, 21, 2, 3)
+    b.fillStyle = '#331122'; b.fillRect(12, 13, 8, 10)
+    // Wings — multi-layered membrane
+    b.fillStyle = '#220e18'; b.fillRect(2, 8, 10, 8); b.fillRect(20, 8, 10, 8)
+    b.fillStyle = '#331122'; b.fillRect(4, 6, 8, 4); b.fillRect(20, 6, 8, 4)
+    b.fillStyle = '#442233'; b.fillRect(6, 14, 6, 6); b.fillRect(20, 14, 6, 6)
+    // Wing veins
+    b.fillStyle = '#551133'; b.fillRect(4, 10, 1, 6); b.fillRect(7, 8, 1, 8); b.fillRect(10, 10, 1, 6)
+    b.fillRect(22, 10, 1, 6); b.fillRect(25, 8, 1, 8); b.fillRect(28, 10, 1, 6)
+    // Eyes
+    b.fillStyle = '#ff2244'; b.fillRect(13, 14, 3, 3); b.fillRect(18, 14, 3, 3)
+    b.fillStyle = '#ff88aa'; b.fillRect(14, 15, 1, 1); b.fillRect(19, 15, 1, 1)
+    // Ears
+    b.fillStyle = '#331122'; b.fillRect(11, 9, 3, 5); b.fillRect(18, 9, 3, 5)
+    // Fangs
+    b.fillStyle = '#ffffff'; b.fillRect(14, 22, 2, 3); b.fillRect(17, 22, 2, 3)
     cb.refresh()
 
-    // Spider
+    // Spider — 8 legs, body segments, red eyes
     const csp = this.textures.createCanvas('enemy_spider', T, T)!
     const sp = csp.getContext()
-    sp.fillStyle = '#1a0808'
-    sp.fillRect(10, 10, 12, 12)
+    // Abdomen
+    sp.fillStyle = '#1a0808'; sp.fillRect(10, 14, 12, 14)
+    sp.fillStyle = '#2a1010'; sp.fillRect(11, 15, 10, 12)
+    // Abdomen markings
+    sp.fillStyle = '#550000'
+    for (let i = 0; i < 4; i++) sp.fillRect(14, 16 + i * 3, 4, 2)
+    // Cephalothorax (head)
+    sp.fillStyle = '#221008'; sp.fillRect(11, 8, 10, 8)
+    // 8 legs (4 per side)
     sp.fillStyle = '#331111'
-    sp.fillRect(4, 12, 8, 4); sp.fillRect(20, 12, 8, 4)
-    sp.fillRect(6, 8, 6, 4);  sp.fillRect(20, 8, 6, 4)
-    sp.fillRect(4, 18, 8, 4); sp.fillRect(20, 18, 8, 4)
-    sp.fillStyle = '#ff2200'; sp.fillRect(12, 12, 3, 3); sp.fillRect(17, 12, 3, 3)
-    sp.fillStyle = '#550000'; sp.fillRect(13, 17, 6, 3)
+    sp.fillRect(2, 10, 10, 3); sp.fillRect(2, 14, 9, 3); sp.fillRect(3, 18, 8, 3); sp.fillRect(4, 22, 7, 3)
+    sp.fillRect(20, 10, 10, 3); sp.fillRect(21, 14, 9, 3); sp.fillRect(21, 18, 8, 3); sp.fillRect(21, 22, 7, 3)
+    // 8 eyes
+    sp.fillStyle = '#ff2200'; sp.fillRect(12, 9, 2, 2); sp.fillRect(15, 9, 2, 2); sp.fillRect(18, 9, 2, 2)
+    sp.fillRect(13, 12, 2, 2); sp.fillRect(17, 12, 2, 2)
     csp.refresh()
 
-    // Guard
+    // Guard — helmet, tabard, spear
     const cg = this.textures.createCanvas('enemy_guard', T, T)!
     const g = cg.getContext()
     g.fillStyle = '#778899'; g.fillRect(8, 4, 16, 12)
-    g.fillStyle = '#99aabb'; g.fillRect(10, 6, 12, 8)
-    g.fillStyle = '#667788'; g.fillRect(6, 16, 20, 16)
-    g.fillStyle = '#778899'
-    g.fillRect(3, 16, 6, 12); g.fillRect(23, 16, 6, 12)
-    g.fillRect(8, 28, 7, 5);  g.fillRect(17, 28, 7, 5)
-    g.fillStyle = '#ff4422'; g.fillRect(11, 9, 4, 4); g.fillRect(17, 9, 4, 4)
-    g.fillStyle = '#aabbcc'; g.fillRect(25, 12, 3, 14)
+    g.fillStyle = '#99aabb'; g.fillRect(10, 5, 12, 9)
+    // Helm visor
+    g.fillStyle = '#1a1a1a'; g.fillRect(11, 9, 10, 3)
+    // Body/tabard
+    g.fillStyle = '#aa2222'; g.fillRect(8, 16, 16, 14)
+    g.fillStyle = '#cc2222'; g.fillRect(10, 17, 12, 10)
+    // Arms
+    g.fillStyle = '#667788'; g.fillRect(4, 16, 6, 12); g.fillRect(22, 16, 6, 12)
+    g.fillRect(8, 28, 7, 5); g.fillRect(17, 28, 7, 5)
+    // Tabard cross
+    g.fillStyle = '#dddddd'; g.fillRect(14, 17, 4, 10); g.fillRect(9, 21, 14, 3)
+    // Spear
+    g.fillStyle = '#aabbcc'; g.fillRect(27, 4, 2, 26)
+    g.fillStyle = '#ddeeee'; g.fillRect(26, 2, 4, 4)
     cg.refresh()
 
-    // Knight
+    // Knight — full plate with plume, two-handed sword
     const ck = this.textures.createCanvas('enemy_knight', T, T)!
     const k = ck.getContext()
     k.fillStyle = '#556677'; k.fillRect(6, 2, 20, 14)
-    k.fillStyle = '#88aabb'; k.fillRect(8, 4, 16, 10)
+    k.fillStyle = '#88aabb'; k.fillRect(8, 3, 16, 11)
+    // Visor
+    k.fillStyle = '#1a1a1a'; k.fillRect(9, 9, 14, 3)
+    k.fillStyle = '#223344'; k.fillRect(10, 8, 3, 5); k.fillRect(19, 8, 3, 5)
+    // Plume
+    k.fillStyle = '#cc2200'; k.fillRect(13, 0, 6, 4)
+    k.fillStyle = '#ff4422'; k.fillRect(14, 0, 4, 2)
+    // Body armor
     k.fillStyle = '#445566'; k.fillRect(4, 16, 24, 18)
-    k.fillStyle = '#556677'
-    k.fillRect(1, 16, 6, 14); k.fillRect(25, 16, 6, 14)
-    k.fillRect(6, 30, 8, 5);  k.fillRect(18, 30, 8, 5)
-    k.fillStyle = '#ee3311'; k.fillRect(10, 7, 5, 5); k.fillRect(17, 7, 5, 5)
-    k.fillStyle = '#ccddee'; k.fillRect(0, 14, 3, 18); k.fillRect(29, 14, 3, 18)
-    k.fillStyle = '#667788'; k.fillRect(28, 10, 4, 20)
+    k.fillStyle = '#556677'; k.fillRect(6, 17, 20, 14)
+    // Armor plates
+    k.fillStyle = '#667788'; k.fillRect(8, 19, 16, 4); k.fillRect(8, 24, 16, 4)
+    // Arms
+    k.fillStyle = '#445566'; k.fillRect(1, 16, 5, 14); k.fillRect(26, 16, 5, 14)
+    k.fillRect(6, 30, 8, 5); k.fillRect(18, 30, 8, 5)
+    // Greatsword
+    k.fillStyle = '#ccddee'; k.fillRect(28, 4, 3, 26)
+    k.fillStyle = '#aabbcc'; k.fillRect(25, 12, 9, 2)
+    k.fillStyle = '#886622'; k.fillRect(29, 28, 2, 4)
     ck.refresh()
 
-    // Dark mage
+    // Dark mage — pointed hat, robes, staff
     const cm = this.textures.createCanvas('enemy_dark_mage', T, T)!
     const m = cm.getContext()
-    m.fillStyle = '#220033'; m.fillRect(9, 4, 14, 12)
-    m.fillStyle = '#330055'; m.fillRect(7, 16, 18, 16)
+    // Hat
+    m.fillStyle = '#110022'; m.fillRect(10, 0, 12, 4)
+    m.fillStyle = '#220033'; m.fillRect(12, 2, 8, 5)
+    m.fillStyle = '#110022'; m.fillRect(7, 5, 18, 3)
+    // Head
+    m.fillStyle = '#ddc0a0'; m.fillRect(10, 7, 12, 10)
+    m.fillStyle = '#aa22ff'; m.fillRect(11, 10, 4, 4); m.fillRect(17, 10, 4, 4)
+    m.fillStyle = '#ffffff'; m.fillRect(12, 11, 2, 2); m.fillRect(18, 11, 2, 2)
+    // Beard
+    m.fillStyle = '#999999'; m.fillRect(12, 16, 8, 4)
+    // Robe
+    m.fillStyle = '#1a0030'; m.fillRect(7, 17, 18, 15)
+    m.fillStyle = '#2a0050'; m.fillRect(9, 18, 14, 12)
     m.fillStyle = '#440066'
-    m.fillRect(4, 16, 6, 12); m.fillRect(22, 16, 6, 12)
-    m.fillRect(8, 30, 6, 5); m.fillRect(18, 30, 6, 5)
-    m.fillStyle = '#aa22ff'; m.fillRect(11, 7, 4, 4); m.fillRect(17, 7, 4, 4)
-    m.fillStyle = '#8800dd'; m.fillRect(13, 14, 6, 2)
-    m.fillStyle = '#ff00ff'; m.fillRect(22, 18, 2, 8)
+    m.fillRect(4, 17, 5, 12); m.fillRect(23, 17, 5, 12)
+    m.fillRect(8, 30, 6, 4); m.fillRect(18, 30, 6, 4)
+    // Rune trim
+    m.fillStyle = '#aa00ff'; m.fillRect(9, 22, 14, 2)
+    // Staff
+    m.fillStyle = '#664422'; m.fillRect(25, 4, 2, 28)
+    m.fillStyle = '#cc00ff'; m.fillRect(23, 2, 6, 5)
+    m.fillStyle = '#ee88ff'; m.fillRect(24, 3, 4, 3)
     cm.refresh()
 
-    // Cave troll
+    // Cave troll — huge, stony skin, club, beady eyes
     const ct = this.textures.createCanvas('enemy_cave_troll', T, T)!
     const t2 = ct.getContext()
-    t2.fillStyle = '#556644'; t2.fillRect(4, 2, 24, 16)
-    t2.fillStyle = '#667755'; t2.fillRect(6, 4, 20, 12)
-    t2.fillStyle = '#445533'; t2.fillRect(2, 18, 28, 16)
-    t2.fillStyle = '#556644'
-    t2.fillRect(0, 18, 6, 14); t2.fillRect(26, 18, 6, 14)
-    t2.fillRect(4, 30, 10, 4); t2.fillRect(18, 30, 10, 4)
-    t2.fillStyle = '#ff4400'; t2.fillRect(9, 7, 6, 6); t2.fillRect(17, 7, 6, 6)
-    t2.fillStyle = '#cccc88'; t2.fillRect(10, 14, 4, 6); t2.fillRect(18, 14, 4, 6)
+    t2.fillStyle = '#556644'; t2.fillRect(3, 2, 26, 16)
+    t2.fillStyle = '#667755'; t2.fillRect(5, 3, 22, 12)
+    // Skin texture bumps
+    t2.fillStyle = '#445533'; t2.fillRect(7, 5, 3, 3); t2.fillRect(14, 4, 3, 3); t2.fillRect(20, 6, 3, 3)
+    t2.fillStyle = '#445533'; t2.fillRect(2, 18, 28, 14)
+    t2.fillStyle = '#556644'; t2.fillRect(4, 19, 24, 11)
+    t2.fillStyle = '#445533'
+    t2.fillRect(0, 18, 5, 12); t2.fillRect(27, 18, 5, 12)
+    t2.fillRect(4, 28, 10, 6); t2.fillRect(18, 28, 10, 6)
+    // Beady eyes
+    t2.fillStyle = '#ff4400'; t2.fillRect(8, 7, 6, 6); t2.fillRect(18, 7, 6, 6)
+    t2.fillStyle = '#ffaa00'; t2.fillRect(9, 8, 4, 4); t2.fillRect(19, 8, 4, 4)
+    t2.fillStyle = '#1a0000'; t2.fillRect(10, 9, 2, 2); t2.fillRect(20, 9, 2, 2)
+    // Tusks
+    t2.fillStyle = '#cccc88'; t2.fillRect(10, 14, 3, 7); t2.fillRect(19, 14, 3, 7)
+    t2.fillStyle = '#eeeeaa'; t2.fillRect(11, 15, 1, 5); t2.fillRect(20, 15, 1, 5)
+    // Stone club
+    t2.fillStyle = '#887766'; t2.fillRect(28, 12, 5, 16)
+    t2.fillStyle = '#aaa088'; t2.fillRect(26, 10, 6, 8)
     ct.refresh()
   }
 
@@ -300,6 +393,56 @@ export class Preload extends Phaser.Scene {
     ctx.fillStyle = '#776600'; ctx.fillRect(0, 6, 24, 4)
     ctx.fillStyle = '#ffd700'; ctx.fillRect(8, 12, 8, 6)
     ctx.fillStyle = '#886600'; ctx.fillRect(10, 10, 4, 2)
+    c.refresh()
+  }
+
+  private makeDoors() {
+    // Closed door — heavy wood planks with iron banding
+    const cc = this.textures.createCanvas('door_closed', T, T)!
+    const ctx = cc.getContext()
+    ctx.fillStyle = '#3d2510'; ctx.fillRect(4, 0, 24, 32)
+    ctx.fillStyle = '#4f3018'
+    for (let i = 0; i < 4; i++) ctx.fillRect(4, i * 8, 24, 6)
+    ctx.fillStyle = '#221408'
+    for (let i = 1; i < 4; i++) ctx.fillRect(4, i * 8 - 1, 24, 2)
+    // Iron bands
+    ctx.fillStyle = '#333333'; ctx.fillRect(4, 4, 24, 2); ctx.fillRect(4, 12, 24, 2); ctx.fillRect(4, 20, 24, 2); ctx.fillRect(4, 28, 24, 2)
+    // Frame
+    ctx.fillStyle = '#221408'; ctx.fillRect(2, 0, 3, 32); ctx.fillRect(27, 0, 3, 32)
+    // Iron handle
+    ctx.fillStyle = '#888888'; ctx.fillRect(21, 14, 4, 2); ctx.fillRect(24, 13, 2, 5)
+    cc.refresh()
+
+    // Open door — same frame but door pushed aside
+    const co = this.textures.createCanvas('door_open', T, T)!
+    const ctxo = co.getContext()
+    // Frame only, door swung open (just show the opening)
+    ctxo.fillStyle = '#221408'; ctxo.fillRect(2, 0, 3, 32); ctxo.fillRect(27, 0, 3, 32)
+    // Shadow in doorway
+    ctxo.fillStyle = '#111111'; ctxo.fillRect(5, 0, 22, 32)
+    ctxo.fillStyle = '#1a0e04'; ctxo.fillRect(6, 0, 2, 32)
+    // Door edge visible (swung to side)
+    ctxo.fillStyle = '#3d2510'; ctxo.fillRect(4, 0, 4, 32)
+    ctxo.fillStyle = '#4f3018'; ctxo.fillRect(5, 0, 2, 30)
+    co.refresh()
+  }
+
+  private makeTorch() {
+    const c = this.textures.createCanvas('torch', 12, 24)!
+    const ctx = c.getContext()
+    // Handle
+    ctx.fillStyle = '#553311'; ctx.fillRect(4, 10, 4, 14)
+    ctx.fillStyle = '#7a5522'; ctx.fillRect(5, 11, 2, 12)
+    // Head/bracket
+    ctx.fillStyle = '#444444'; ctx.fillRect(3, 8, 6, 4)
+    ctx.fillStyle = '#222222'; ctx.fillRect(3, 8, 2, 14)
+    // Flame outer
+    ctx.fillStyle = '#ff4400'; ctx.fillRect(2, 4, 8, 6)
+    ctx.fillStyle = '#ff6600'; ctx.fillRect(3, 3, 6, 5)
+    // Flame inner
+    ctx.fillStyle = '#ffaa00'; ctx.fillRect(4, 4, 4, 4)
+    ctx.fillStyle = '#ffee00'; ctx.fillRect(5, 4, 2, 3)
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(5, 5, 2, 1)
     c.refresh()
   }
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { generateDungeon, TILE_WALL, TILE_FLOOR, type DungeonData } from '../systems/DungeonGenerator'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
+import { Door } from '../entities/Door'
 import { Boss, getBossType } from '../entities/Boss'
 import { Hazard } from '../entities/Hazard'
 import { Loot, type LootType } from '../entities/Loot'
@@ -42,8 +43,11 @@ export class DungeonScene extends Phaser.Scene {
   private inventoryUI!: InventoryUI
   private shopUI!: ShopUI
   private minimap!: Minimap
+  private doors: Door[] = []
+  private doorGroup!: Phaser.GameObjects.Group
   private invKey!: Phaser.Input.Keyboard.Key
   private shopKey!: Phaser.Input.Keyboard.Key
+  private interactKey!: Phaser.Input.Keyboard.Key
   private score = 0
   private dungeon!: DungeonData
   private gameEnding = false
@@ -58,6 +62,7 @@ export class DungeonScene extends Phaser.Scene {
     this.score = 0
     this.gameEnding = false
     this.hazards = []
+    this.doors = []
     this.boss = undefined
     this.portal = undefined
     this.stairsSprite = undefined
@@ -74,6 +79,8 @@ export class DungeonScene extends Phaser.Scene {
     this.spawnEnemies()
     this.spawnHazards()
     this.spawnShop()
+    this.spawnDoors()
+    this.spawnTorches()
     if (this.floor < 3) this.spawnStairs()
     this.spawnLoot()
     this.setupCamera()
@@ -125,7 +132,7 @@ export class DungeonScene extends Phaser.Scene {
     // Apply cosmetic tint
     const save = SaveManager.load()
     const cosmetic = COSMETICS.find(c => c.id === save.activeCosmetic) ?? COSMETICS[0]
-    if (cosmetic.tint !== 0xffffff) this.player.setTint(cosmetic.tint)
+    this.player.setCosmeticTint(cosmetic.tint)
 
     // Ensure at least one weapon
     if (!this.player.inventory.get('weapon1') && !this.player.inventory.get('weapon2')) {
@@ -144,7 +151,9 @@ export class DungeonScene extends Phaser.Scene {
 
       if (idx === minibossRoomIdx && this.floor < 3) {
         const type = pickSpawnType(this.theme, this.floor)
-        this.enemies.add(new Enemy(this, room.cx * TILE + TILE / 2, room.cy * TILE + TILE / 2, type, true, this.floor))
+        const mb = new Enemy(this, room.cx * TILE + TILE / 2, room.cy * TILE + TILE / 2, type, true, this.floor)
+        mb.setWallChecker((x1, y1, x2, y2) => this.hasWallBetween(x1, y1, x2, y2))
+        this.enemies.add(mb)
         return
       }
 
@@ -153,7 +162,9 @@ export class DungeonScene extends Phaser.Scene {
         const ex = (room.x + 1 + Math.floor(Math.random() * (room.w - 2))) * TILE + TILE / 2
         const ey = (room.y + 1 + Math.floor(Math.random() * (room.h - 2))) * TILE + TILE / 2
         const type = pickSpawnType(this.theme, this.floor)
-        this.enemies.add(new Enemy(this, ex, ey, type, false, this.floor))
+        const enemy = new Enemy(this, ex, ey, type, false, this.floor)
+        enemy.setWallChecker((x1, y1, x2, y2) => this.hasWallBetween(x1, y1, x2, y2))
+        this.enemies.add(enemy)
       }
     })
 
@@ -177,7 +188,7 @@ export class DungeonScene extends Phaser.Scene {
     const sy = room.cy * TILE + TILE / 2
     this.shopRoomCenter = new Phaser.Math.Vector2(sx, sy)
     this.add.text(sx, sy - 20, '[ SHOP ]', { fontSize: '10px', color: '#ffd700' }).setOrigin(0.5).setDepth(5)
-    this.add.text(sx, sy - 10, 'Press E', { fontSize: '7px', color: '#665500' }).setOrigin(0.5).setDepth(5)
+    this.add.text(sx, sy - 10, 'Press TAB', { fontSize: '7px', color: '#665500' }).setOrigin(0.5).setDepth(5)
     this.add.sprite(sx, sy + 6, 'icon_shop').setDepth(4).setScale(1.2)
   }
 
@@ -232,6 +243,9 @@ export class DungeonScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.wallLayer)
     this.physics.add.collider(this.enemies, this.enemies)
     if (this.boss) this.physics.add.collider(this.boss, this.wallLayer)
+    this.physics.add.collider(this.player, this.doorGroup)
+    this.physics.add.collider(this.enemies, this.doorGroup)
+    if (this.boss) this.physics.add.collider(this.boss, this.doorGroup)
 
     this.physics.add.overlap(this.player, this.lootGroup, (_p, loot) => {
       const l = loot as Loot
@@ -240,8 +254,10 @@ export class DungeonScene extends Phaser.Scene {
     })
 
     this.physics.add.overlap(this.player, this.droppedItemGroup, (_p, dropped) => {
-      this.pickupItem((dropped as DroppedItem).itemDef)
-      ;(dropped as DroppedItem).destroy()
+      const di = dropped as DroppedItem
+      if (this.pickupItem(di.itemDef)) {
+        this.droppedItemGroup.remove(di, true, true)
+      }
     })
 
     if (this.stairsSprite) {
@@ -264,8 +280,9 @@ export class DungeonScene extends Phaser.Scene {
     this.input.on('pointerup',   (p: Phaser.Input.Pointer) => this.player.endTouchMove(p.id))
 
     const kb = this.input.keyboard!
-    this.invKey  = kb.addKey(getKey('inventory', 'I'))
-    this.shopKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+    this.invKey     = kb.addKey(getKey('inventory', 'I'))
+    this.shopKey    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB)
+    this.interactKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
   }
 
   private processAttack() {
@@ -289,6 +306,7 @@ export class DungeonScene extends Phaser.Scene {
       if (dist > weapon.range) return
       const toEDeg = Phaser.Math.RadToDeg(Phaser.Math.Angle.Between(px, py, obj.x, obj.y))
       if (Math.abs(Phaser.Math.Angle.ShortestBetween(facingDeg, toEDeg)) > weapon.arcAngle / 2) return
+      if (this.hasWallBetween(px, py, obj.x, obj.y)) return
 
       const isCrit = Math.random() < stats.critChance
       const dmg = weapon.damage * (isCrit ? 2 : 1)
@@ -313,28 +331,38 @@ export class DungeonScene extends Phaser.Scene {
     this.droppedItemGroup.refresh()
   }
 
-  private pickupItem(item: ItemDef) {
+  private pickupItem(item: ItemDef): boolean {
     if (item.slotType === 'consumable') {
       if (this.player.bag.canAdd(item)) {
         this.player.bag.add(item)
         this.hud.showPickupText(this.player.x, this.player.y - 40, `+ ${item.name}`)
-      } else {
-        this.hud.showPickupText(this.player.x, this.player.y - 40, 'Bag full!')
+        return true
       }
-      return
+      this.hud.showPickupText(this.player.x, this.player.y - 40, 'Bag full!')
+      return false
     }
 
-    const displaced = this.player.inventory.equipItem(item)
-    this.hud.showPickupText(this.player.x, this.player.y - 40, `Equip: ${item.name}`)
+    const inv = this.player.inventory
+    const slotFree = item.slotType === 'weapon'
+      ? (!inv.get('weapon1') || !inv.get('weapon2'))
+      : !inv.get(item.slotType as 'helm' | 'chest' | 'legs' | 'gloves' | 'ring' | 'necklace')
 
-    if (displaced) {
-      if (this.player.bag.canAdd(displaced)) {
-        this.player.bag.add(displaced)
-        this.hud.showPickupText(this.player.x, this.player.y - 55, `+ ${displaced.name} (bag)`)
-      }
+    if (slotFree) {
+      inv.equipItem(item)
+      this.hud.showPickupText(this.player.x, this.player.y - 40, `Equip: ${item.name}`)
+      this.inventoryUI.refresh(this.player)
+      return true
     }
 
-    this.inventoryUI.refresh(this.player)
+    if (this.player.bag.canAdd(item)) {
+      this.player.bag.add(item)
+      this.hud.showPickupText(this.player.x, this.player.y - 40, `+ ${item.name} (bag)`)
+      this.inventoryUI.refresh(this.player)
+      return true
+    }
+
+    this.hud.showPickupText(this.player.x, this.player.y - 40, 'Bag full!')
+    return false
   }
 
   private handleBossDefeated() {
@@ -409,6 +437,39 @@ export class DungeonScene extends Phaser.Scene {
       this.scene.start('GameOver', { score: this.score, victory, floor: this.floor, theme: this.theme }))
   }
 
+  private hasWallBetween(x1: number, y1: number, x2: number, y2: number): boolean {
+    const dx = x2 - x1, dy = y2 - y1
+    const steps = Math.ceil(Math.sqrt(dx * dx + dy * dy) / (TILE / 2))
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps
+      const col = Math.floor((x1 + dx * t) / TILE)
+      const row = Math.floor((y1 + dy * t) / TILE)
+      const tile = this.wallLayer.getTileAt(col, row)
+      if (tile && tile.index === TILE_WALL) return true
+    }
+    return false
+  }
+
+  private spawnDoors() {
+    this.doorGroup = this.add.group()
+    this.dungeon.doors.forEach(d => {
+      const door = new Door(this, d.x * TILE + TILE / 2, d.y * TILE + TILE / 2)
+      this.doors.push(door)
+      this.doorGroup.add(door)
+    })
+  }
+
+  private spawnTorches() {
+    const tintMap: Record<DungeonTheme, number> = { dungeon: 0xff6600, castle: 0xffcc00, caves: 0x00aacc }
+    const tint = tintMap[this.theme]
+    this.dungeon.rooms.forEach(room => {
+      [[room.x + 1, room.y + 1], [room.x + room.w - 2, room.y + 1]].forEach(([col, row]) => {
+        const torch = this.add.sprite(col * TILE + TILE / 2, row * TILE + TILE / 2, 'torch').setDepth(1).setTint(tint)
+        this.tweens.add({ targets: torch, alpha: 0.55, duration: 550 + Math.random() * 200, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
+      })
+    })
+  }
+
   private cleanup() {
     this.input.off('pointerdown')
     this.input.off('pointermove')
@@ -421,6 +482,16 @@ export class DungeonScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.invKey)) {
       if (this.shopUI.isOpen()) this.shopUI.close()
       this.inventoryUI.toggle(this.player)
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      let nearest: Door | null = null
+      let nearestDist = 48
+      for (const door of this.doors) {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, door.x, door.y)
+        if (dist < nearestDist) { nearest = door; nearestDist = dist }
+      }
+      if (nearest) nearest.toggle()
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.shopKey)) {

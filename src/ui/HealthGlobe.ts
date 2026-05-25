@@ -20,25 +20,37 @@ export class HealthGlobe {
   update(hp: number, maxHp: number) {
     const pct = Math.max(0, Math.min(1, hp / maxHp))
     const { cx, cy, R } = this
+    const innerR = R - 2
 
     this.gfx.clear()
 
+    // Background circle
     this.gfx.fillStyle(0x1a0000, 1)
     this.gfx.fillCircle(cx, cy, R)
 
+    // Health-colored full inner circle
     const color = pct > 0.5 ? 0xcc2222 : pct > 0.25 ? 0xff7700 : 0xff2200
     this.gfx.fillStyle(color, 1)
-    this.gfx.fillCircle(cx, cy, R - 2)
+    this.gfx.fillCircle(cx, cy, innerR)
 
-    const emptyH = Math.round((R - 2) * 2 * (1 - pct))
-    if (emptyH > 0) {
-      this.gfx.fillStyle(0x000000, 1)
-      this.gfx.fillRect(cx - R + 2, cy - R + 2, (R - 2) * 2, emptyH)
+    // Draw the "empty" arc segment at the top using a proper circle chord
+    if (pct < 1) {
+      const fillLineRelY = innerR - 2 * innerR * pct
+      const halfChord = Math.sqrt(Math.max(0, innerR * innerR - fillLineRelY * fillLineRelY))
+      const startAngle = Math.atan2(fillLineRelY, -halfChord)
+      const endAngle = Math.atan2(fillLineRelY, halfChord)
+      this.gfx.fillStyle(0x1a0000, 1)
+      this.gfx.beginPath()
+      this.gfx.arc(cx, cy, innerR, startAngle, endAngle, true)
+      this.gfx.closePath()
+      this.gfx.fillPath()
     }
 
-    this.gfx.fillStyle(0xffffff, 0.1)
-    this.gfx.fillRect(cx - R + 5, cy - R + 5, 4, R - 6)
+    // Gloss highlight (stays well inside the circle, no bleed)
+    this.gfx.fillStyle(0xffffff, 0.12)
+    this.gfx.fillCircle(cx - R / 3, cy - R / 3, R / 5)
 
+    // Border ring
     this.gfx.lineStyle(2, 0x880000, 1)
     this.gfx.strokeCircle(cx, cy, R)
 

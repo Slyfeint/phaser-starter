@@ -11,6 +11,10 @@ export interface HazardSpawn {
   x: number; y: number; type: 'fire_pit' | 'spike_trap' | 'dart_turret'
 }
 
+export interface DoorPosition {
+  x: number; y: number
+}
+
 export interface DungeonData {
   tiles: number[][]
   rooms: Room[]
@@ -21,17 +25,20 @@ export interface DungeonData {
   shopRoomIdx: number
   minibossRoomIdx: number
   hazards: HazardSpawn[]
+  doors: DoorPosition[]
 }
 
 function ri(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-function buildTunnel(tiles: number[][], r1: Room, r2: Room) {
+function buildTunnel(tiles: number[][], r1: Room, r2: Room, doors: DoorPosition[]) {
   const mnx = Math.min(r1.cx, r2.cx), mxx = Math.max(r1.cx, r2.cx)
   for (let tx = mnx; tx <= mxx; tx++) tiles[r1.cy][tx] = TILE_FLOOR
   const mny = Math.min(r1.cy, r2.cy), mxy = Math.max(r1.cy, r2.cy)
   for (let ty = mny; ty <= mxy; ty++) tiles[ty][r2.cx] = TILE_FLOOR
+  // Place door at corridor elbow
+  doors.push({ x: r2.cx, y: r1.cy })
 }
 
 export function generateDungeon(
@@ -40,6 +47,7 @@ export function generateDungeon(
 ): DungeonData {
   const tiles = Array.from({ length: rows }, () => new Array<number>(cols).fill(TILE_WALL))
   const rooms: Room[] = []
+  const doors: DoorPosition[] = []
 
   const maxRooms = isBossFloor ? 8 : 10
   const minRooms = 5
@@ -60,11 +68,12 @@ export function generateDungeon(
     const cx = Math.floor(x + w / 2)
     const cy = Math.floor(y + h / 2)
 
-    if (rooms.length > 0) buildTunnel(tiles, rooms[rooms.length - 1], { x, y, w, h, cx, cy })
+    if (rooms.length > 0) buildTunnel(tiles, rooms[rooms.length - 1], { x, y, w, h, cx, cy }, doors)
     rooms.push({ x, y, w, h, cx, cy })
   }
 
   if (rooms.length < minRooms) return generateDungeon(cols, rows, floor, isBossFloor)
+
 
   const bossRoomIdx = rooms.length - 1
   const stairsRoomIdx = rooms.length >= 3 ? rooms.length - 2 : 0
@@ -116,5 +125,5 @@ export function generateDungeon(
     hazards.push({ x: col, y: row, type: hazardTypes[i % hazardTypes.length] })
   }
 
-  return { tiles, rooms, cols, rows, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx, hazards }
+  return { tiles, rooms, cols, rows, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx, hazards, doors }
 }
