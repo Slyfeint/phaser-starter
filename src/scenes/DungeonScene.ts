@@ -45,6 +45,7 @@ export class DungeonScene extends Phaser.Scene {
   private minimap!: Minimap
   private doors: Door[] = []
   private doorGroup!: Phaser.GameObjects.Group
+  private droppedItemRejectUntil = new Map<DroppedItem, number>()
   private invKey!: Phaser.Input.Keyboard.Key
   private shopKey!: Phaser.Input.Keyboard.Key
   private interactKey!: Phaser.Input.Keyboard.Key
@@ -63,6 +64,7 @@ export class DungeonScene extends Phaser.Scene {
     this.gameEnding = false
     this.hazards = []
     this.doors = []
+    this.droppedItemRejectUntil = new Map()
     this.boss = undefined
     this.portal = undefined
     this.stairsSprite = undefined
@@ -254,9 +256,15 @@ export class DungeonScene extends Phaser.Scene {
     })
 
     this.physics.add.overlap(this.player, this.droppedItemGroup, (_p, dropped) => {
+      if (this.gameEnding) return
       const di = dropped as DroppedItem
+      const now = this.time.now
+      if ((this.droppedItemRejectUntil.get(di) ?? 0) > now) return
       if (this.pickupItem(di.itemDef)) {
+        this.droppedItemRejectUntil.delete(di)
         this.droppedItemGroup.remove(di, true, true)
+      } else {
+        this.droppedItemRejectUntil.set(di, now + 1000)
       }
     })
 

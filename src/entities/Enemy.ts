@@ -43,6 +43,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private burstCooldown = 0
   private hpBar!: Phaser.GameObjects.Graphics
   private _wallChecker?: (x1: number, y1: number, x2: number, y2: number) => boolean
+  private _lastHpDrawn = -1
 
   constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType = 'skeleton', miniboss = false, floor = 1) {
     super(scene, x, y, TEXTURE[type])
@@ -246,6 +247,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   private drawHpBar() {
     if (!this.active || !this.hpBar) return
+    if (this.hp === this._lastHpDrawn && !this.isMiniboss) return
+    this._lastHpDrawn = this.hp
     const pct = Math.max(0, this.hp / this.stats.hp)
     if (pct >= 1 && !this.isMiniboss) { this.hpBar.clear(); return }
     const bw = this.isMiniboss ? 36 : 24

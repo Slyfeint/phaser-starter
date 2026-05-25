@@ -43,7 +43,8 @@ function buildTunnel(tiles: number[][], r1: Room, r2: Room, doors: DoorPosition[
 
 export function generateDungeon(
   cols: number, rows: number,
-  floor = 1, isBossFloor = false
+  floor = 1, isBossFloor = false,
+  _depth = 0
 ): DungeonData {
   const tiles = Array.from({ length: rows }, () => new Array<number>(cols).fill(TILE_WALL))
   const rooms: Room[] = []
@@ -72,7 +73,8 @@ export function generateDungeon(
     rooms.push({ x, y, w, h, cx, cy })
   }
 
-  if (rooms.length < minRooms) return generateDungeon(cols, rows, floor, isBossFloor)
+  if (rooms.length < minRooms && _depth < 12)
+    return generateDungeon(cols, rows, floor, isBossFloor, _depth + 1)
 
 
   const bossRoomIdx = rooms.length - 1
