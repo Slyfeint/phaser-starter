@@ -1,21 +1,26 @@
 import Phaser from 'phaser'
+import { Inventory } from '../systems/Inventory'
+import { WEAPONS, type WeaponDef } from '../systems/WeaponDefs'
+import { getKey } from '../systems/KeyBindings'
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  readonly maxHp = 100
+  maxHp = 100
   hp = 100
-  readonly attackDamage = 25
-  readonly attackRange = 52
-  attackActive = false
+  facingAngle = 0
 
-  private speed = 165
+  readonly inventory = new Inventory()
+  activeSlot: 0 | 1 = 0
+
+  private baseSpeed = 165
   private atkCooldown = 0
-  private readonly ATK_CD = 450
+  private isRolling = false
+  private rollCooldown = 0
+  private readonly ROLL_CD = 1200
+  private readonly ROLL_DURATION = 200
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
-  private wasd!: Record<string, Phaser.Input.Keyboard.Key>
-  private spaceKey!: Phaser.Input.Keyboard.Key
+  private keys!: Record<string, Phaser.Input.Keyboard.Key>
 
-  // Touch joystick state
   private touchMoveId = -1
   private touchOrigin = new Phaser.Math.Vector2()
   private touchCurrent = new Phaser.Math.Vector2()
@@ -28,14 +33,37 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     ;(this.body as Phaser.Physics.Arcade.Body).setSize(20, 24)
   }
 
+  get currentWeapon(): WeaponDef {
+    const stats = this.inventory.getStats()
+    return (this.activeSlot === 0 ? stats.weapon1 : stats.weapon2) ?? WEAPONS.sword
+  }
+
+  get attackCooldownMax(): number {
+    return this.currentWeapon.cooldown * this.inventory.getStats().atkSpeedMult
+  }
+
+  get moveSpeed(): number {
+    return this.baseSpeed + this.inventory.getStats().speedBonus
+  }
+
+  get effectiveMaxHp(): number {
+    return this.maxHp + this.inventory.getStats().maxHpBonus
+  }
+
+  get rolling(): boolean { return this.isRolling }
+
   setupInput(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!
     this.cursors = kb.createCursorKeys()
-    this.wasd = {
-      up: kb.addKey('W'), down: kb.addKey('S'),
-      left: kb.addKey('A'), right: kb.addKey('D'),
+    this.keys = {
+      up:     kb.addKey(getKey('up', 'W')),
+      down:   kb.addKey(getKey('down', 'S')),
+      left:   kb.addKey(getKey('left', 'A')),
+      right:  kb.addKey(getKey('right', 'D')),
+      attack: kb.addKey(getKey('attack', 'SPACE')),
+      roll:   kb.addKey(getKey('roll', 'Q')),
+      swap:   kb.addKey(getKey('swap', 'F')),
     }
-    this.spaceKey = kb.addKey('SPACE')
   }
 
   startTouchMove(id: number, x: number, y: number) {
@@ -52,29 +80,46 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   endTouchMove(id: number) {
     if (id === this.touchMoveId) {
       this.touchMoveId = -1
-      this.setVelocity(0, 0)
+      if (!this.isRolling) this.setVelocity(0, 0)
     }
   }
 
   triggerAttack() {
-    if (this.atkCooldown > 0) return
-    this.atkCooldown = this.ATK_CD
-    this.attackActive = true
+    if (this.atkCooldown > 0 || this.isRolling) return
+    this.atkCooldown = this.attackCooldownMax
     this.scene.events.emit('player-attack')
-    this.scene.time.delayedCall(150, () => { this.attackActive = false })
     this.setTint(0xffffaa)
-    this.scene.time.delayedCall(150, () => this.clearTint())
+    this.scene.time.delayedCall(120, () => this.clearTint())
+  }
+
+  triggerRoll() {
+    if (this.rollCooldown > 0 || this.isRolling) return
+    this.isRolling = true
+    this.rollCooldown = this.ROLL_CD
+    const body = this.body as Phaser.Physics.Arcade.Body
+    body.setVelocity(
+      Math.cos(this.facingAngle) * this.moveSpeed * 2.5,
+      Math.sin(this.facingAngle) * this.moveSpeed * 2.5
+    )
+    this.scene.tweens.add({ targets: this, alpha: 0.3, duration: 55, yoyo: true, repeat: 3 })
+    this.scene.time.delayedCall(this.ROLL_DURATION, () => { this.isRolling = false })
+  }
+
+  swapWeapon() {
+    this.activeSlot = this.activeSlot === 0 ? 1 : 0
   }
 
   update(delta: number) {
     this.atkCooldown = Math.max(0, this.atkCooldown - delta)
+    this.rollCooldown = Math.max(0, this.rollCooldown - delta)
+
+    if (this.isRolling) return
 
     let vx = 0, vy = 0
-
-    if (this.wasd.left.isDown || this.cursors.left.isDown) vx -= 1
-    if (this.wasd.right.isDown || this.cursors.right.isDown) vx += 1
-    if (this.wasd.up.isDown || this.cursors.up.isDown) vy -= 1
-    if (this.wasd.down.isDown || this.cursors.down.isDown) vy += 1
+    if (this.keys.left.isDown  || this.cursors.left.isDown)  vx -= 1
+    if (this.keys.right.isDown || this.cursors.right.isDown) vx += 1
+    if (this.keys.up.isDown    || this.cursors.up.isDown)    vy -= 1
+    if (this.keys.down.isDown  || this.cursors.down.isDown)  vy += 1
 
     if (this.touchMoveId !== -1) {
       const dx = this.touchCurrent.x - this.touchOrigin.x
@@ -83,20 +128,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (d > 12) { vx += dx / d; vy += dy / d }
     }
 
-    const moving = vx !== 0 || vy !== 0
-    if (moving) {
+    if (vx !== 0 || vy !== 0) {
       const len = Math.sqrt(vx * vx + vy * vy)
-      this.setVelocity((vx / len) * this.speed, (vy / len) * this.speed)
+      const nx = vx / len, ny = vy / len
+      this.setVelocity(nx * this.moveSpeed, ny * this.moveSpeed)
+      this.facingAngle = Math.atan2(ny, nx)
       if (vx !== 0) this.setFlipX(vx < 0)
     } else {
       this.setVelocity(0, 0)
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) this.triggerAttack()
+    if (Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.triggerAttack()
+    if (Phaser.Input.Keyboard.JustDown(this.keys.roll))   this.triggerRoll()
+    if (Phaser.Input.Keyboard.JustDown(this.keys.swap))   this.swapWeapon()
   }
 
   takeDamage(amount: number): boolean {
-    this.hp = Math.max(0, this.hp - amount)
+    if (this.isRolling) return false
+    const reduced = Math.round(amount * (1 - this.inventory.getStats().armor / 100))
+    this.hp = Math.max(0, this.hp - reduced)
     this.setTint(0xff3333)
     this.scene.time.delayedCall(200, () => this.hp > 0 && this.clearTint())
     return this.hp <= 0

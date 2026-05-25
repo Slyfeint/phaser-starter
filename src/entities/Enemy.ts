@@ -1,11 +1,13 @@
 import Phaser from 'phaser'
 import type { Player } from './Player'
+import type { ItemDef } from '../systems/ItemDefs'
+import { WEAPON_ITEMS, ARMOR_ITEMS } from '../systems/ItemDefs'
 
 export type EnemyType = 'skeleton' | 'orc'
 
 const STATS = {
-  skeleton: { hp: 30, speed: 85,  dmg: 8,  chaseRange: 160, atkRange: 36, loot: 15, atkCd: 1200 },
-  orc:      { hp: 65, speed: 58,  dmg: 20, chaseRange: 200, atkRange: 44, loot: 35, atkCd: 2000 },
+  skeleton: { hp: 30, speed: 85,  dmg: 8,  chaseRange: 160, atkRange: 36, loot: 15, atkCd: 1200, kbResist: 1.0,  dropChance: 0.20 },
+  orc:      { hp: 65, speed: 58,  dmg: 20, chaseRange: 200, atkRange: 44, loot: 35, atkCd: 2000, kbResist: 0.35, dropChance: 0.40 },
 }
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -14,6 +16,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private readonly stats: typeof STATS[EnemyType]
   private atkCooldown = 0
   private aiState: 'idle' | 'chase' | 'attack' = 'idle'
+  private hpBar!: Phaser.GameObjects.Graphics
 
   constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType = 'skeleton') {
     super(scene, x, y, type === 'orc' ? 'enemy_orc' : 'enemy_skeleton')
@@ -24,6 +27,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hp = this.stats.hp
     this.lootValue = this.stats.loot
     ;(this.body as Phaser.Physics.Arcade.Body).setSize(20, 24)
+    this.hpBar = scene.add.graphics().setDepth(6)
   }
 
   update(delta: number, player: Player) {
@@ -32,7 +36,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
 
-    if (dist < this.stats.atkRange) this.aiState = 'attack'
+    if (dist < this.stats.atkRange)    this.aiState = 'attack'
     else if (dist < this.stats.chaseRange) this.aiState = 'chase'
     else this.aiState = 'idle'
 
@@ -56,13 +60,50 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         }
         break
     }
+
+    this.drawHpBar()
   }
 
-  takeDamage(amount: number): boolean {
+  takeDamage(amount: number, knockbackAngle = 0, knockbackForce = 0): boolean {
     this.hp -= amount
+    if (knockbackForce > 0) {
+      const force = knockbackForce * this.stats.kbResist
+      ;(this.body as Phaser.Physics.Arcade.Body).setVelocity(
+        Math.cos(knockbackAngle) * force,
+        Math.sin(knockbackAngle) * force
+      )
+    }
     this.setTint(0xff4444)
     this.scene.time.delayedCall(100, () => this.active && this.clearTint())
-    if (this.hp <= 0) { this.destroy(); return true }
+    this.drawHpBar()
+    if (this.hp <= 0) {
+      this.hpBar.destroy()
+      this.destroy()
+      return true
+    }
     return false
+  }
+
+  rollDrop(): ItemDef | null {
+    if (Math.random() > this.stats.dropChance) return null
+    const pool = Math.random() < 0.5 ? WEAPON_ITEMS : ARMOR_ITEMS
+    return pool[Math.floor(Math.random() * pool.length)]
+  }
+
+  private drawHpBar() {
+    if (!this.active || !this.hpBar) return
+    const pct = Math.max(0, this.hp / this.stats.hp)
+    if (pct >= 1) { this.hpBar.clear(); return }
+    const bw = 24
+    this.hpBar.clear()
+    this.hpBar.fillStyle(0x330000)
+    this.hpBar.fillRect(this.x - bw / 2, this.y - 24, bw, 4)
+    this.hpBar.fillStyle(0xee2222)
+    this.hpBar.fillRect(this.x - bw / 2, this.y - 24, bw * pct, 4)
+  }
+
+  destroy(fromScene = false) {
+    this.hpBar?.destroy()
+    super.destroy(fromScene)
   }
 }
