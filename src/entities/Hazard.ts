@@ -91,7 +91,7 @@ export class Hazard extends Phaser.GameObjects.Sprite {
     const gfx = this.scene.add.graphics().setDepth(8)
     gfx.lineStyle(3, 0xddbb55, 1)
     gfx.lineBetween(this.x, this.y, endX, endY)
-    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 350, onComplete: () => gfx.destroy() })
+    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 350, onComplete: () => { if (gfx.active) gfx.destroy() } })
 
     // Check if player is in path
     const toPlayerAngle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)

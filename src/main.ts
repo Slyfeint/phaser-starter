@@ -6,6 +6,7 @@ import { LobbyScene } from './scenes/LobbyScene'
 import { DungeonScene } from './scenes/DungeonScene'
 import { GameOver } from './scenes/GameOver'
 import { SettingsScene } from './scenes/SettingsScene'
+import { PauseScene } from './scenes/PauseScene'
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -24,7 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [Boot, Preload, MainMenu, LobbyScene, DungeonScene, GameOver, SettingsScene],
+  scene: [Boot, Preload, MainMenu, LobbyScene, DungeonScene, GameOver, SettingsScene, PauseScene],
 }
 
 const game = new Phaser.Game(config)

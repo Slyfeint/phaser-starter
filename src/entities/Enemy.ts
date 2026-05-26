@@ -131,7 +131,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     gfx.fillStyle(0xff8800, 0.6)
     gfx.slice(this.x, this.y, 28, ang - sweep / 2, ang + sweep / 2, false)
     gfx.fillPath()
-    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 200, onComplete: () => gfx.destroy() })
+    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 200, onComplete: () => { if (gfx.active) gfx.destroy() } })
   }
 
   private updateErratic(dist: number, player: Player) {
@@ -192,7 +192,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     gfx.lineStyle(3, 0xaa00ff, 0.9)
     gfx.lineBetween(this.x, this.y, player.x, player.y)
     this.setTint(0xcc00ff)
-    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 280, onComplete: () => gfx.destroy() })
+    this.scene.tweens.add({ targets: gfx, alpha: 0, duration: 280, onComplete: () => { if (gfx.active) gfx.destroy() } })
     this.scene.time.delayedCall(140, () => {
       if (!this.active) return
       this.clearTint()
@@ -209,7 +209,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }).setOrigin(0.5).setDepth(15).setScale(0.4)
     this.scene.tweens.add({ targets: warn, scaleX: 1.2, scaleY: 1.2, duration: 120, ease: 'Back.Out',
       onComplete: () => {
-        this.scene.tweens.add({ targets: warn, y: warn.y - 14, alpha: 0, duration: 300, onComplete: () => warn.destroy() })
+        if (!this.active || !warn.active) return
+        this.scene.tweens.add({ targets: warn, y: warn.y - 14, alpha: 0, duration: 300,
+          onComplete: () => { if (warn.active) warn.destroy() }
+        })
       }
     })
   }

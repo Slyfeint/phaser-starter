@@ -99,7 +99,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const boom = this.scene.add.text(this.x, this.y - 60, 'ENRAGE!', {
       fontSize: '22px', fontStyle: 'bold', color: '#ff3300',
     }).setOrigin(0.5).setDepth(16)
-    this.scene.tweens.add({ targets: boom, y: boom.y - 40, alpha: 0, duration: 1200, onComplete: () => boom.destroy() })
+    this.scene.tweens.add({ targets: boom, y: boom.y - 40, alpha: 0, duration: 1200, onComplete: () => { if (boom.active) boom.destroy() } })
   }
 
   private doSpecial(player: Player) {
@@ -119,7 +119,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       const burst = this.scene.add.graphics().setDepth(10)
       burst.fillStyle(0xff2200, 0.4)
       burst.fillCircle(this.x, this.y, radius)
-      this.scene.tweens.add({ targets: burst, alpha: 0, duration: 350, onComplete: () => burst.destroy() })
+      this.scene.tweens.add({ targets: burst, alpha: 0, duration: 350, onComplete: () => { if (burst.active) burst.destroy() } })
     })
   }
 
@@ -127,7 +127,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const w = this.scene.add.text(this.x, this.y - 52, '!', {
       fontSize: '30px', fontStyle: 'bold', color: '#ff2222',
     }).setOrigin(0.5).setDepth(15)
-    this.scene.tweens.add({ targets: w, y: w.y - 18, alpha: 0, duration: 380, onComplete: () => w.destroy() })
+    this.scene.tweens.add({ targets: w, y: w.y - 18, alpha: 0, duration: 380, onComplete: () => { if (w.active) w.destroy() } })
   }
 
   takeDamage(amount: number, kbAngle = 0, kbForce = 0): boolean {

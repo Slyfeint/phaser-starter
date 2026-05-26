@@ -294,6 +294,15 @@ export class DungeonScene extends Phaser.Scene {
     this.invKey     = kb.addKey(getKey('inventory', 'I'))
     this.shopKey    = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB)
     this.interactKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+
+    kb.on('keydown-ESC', () => {
+      if (this.gameEnding) return
+      if (!this.scene.isActive()) return
+      if (this.inventoryUI.isOpen()) this.inventoryUI.toggle(this.player)
+      if (this.shopUI.isOpen()) this.shopUI.close()
+      this.scene.pause()
+      this.scene.launch('PauseScene')
+    })
   }
 
   private processAttack() {
@@ -410,6 +419,8 @@ export class DungeonScene extends Phaser.Scene {
   private advanceFloor() {
     this.gameEnding = true
     this.physics.world.pause()
+    this.time.removeAllEvents()
+    this.tweens.killAll()
     const runState: RunState = {
       hp: this.player.hp,
       score: this.score,
@@ -428,6 +439,8 @@ export class DungeonScene extends Phaser.Scene {
     this.gameEnding = true
     this.player.setVelocity(0, 0)
     this.physics.world.pause()
+    this.time.removeAllEvents()   // cancel every pending timer callback
+    this.tweens.killAll()          // kill every tween; onComplete is NOT called
 
     const save = SaveManager.load()
     if (victory) {
