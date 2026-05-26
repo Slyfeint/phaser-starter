@@ -103,8 +103,11 @@ export class InventoryUI {
           if (unequipped) {
             if (player.bag.canAdd(unequipped)) {
               player.bag.add(unequipped)
+            } else {
+              // Bag full — put it back rather than deleting it
+              player.inventory.equipItem(unequipped)
+              return
             }
-            // If bag is full, item is lost (rare edge case) — could improve later
           }
           this.close()
           this.open = true
@@ -154,7 +157,7 @@ export class InventoryUI {
         if (isConsumable) {
           rowBg.on('pointerdown', () => {
             const removed = player.bag.remove(i)
-            if (removed?.healAmount) player.heal(removed.healAmount)
+            if (removed) player.useConsumable(removed)
             this.close()
             this.open = true
             this.rebuild(player)

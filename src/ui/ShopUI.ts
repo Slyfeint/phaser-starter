@@ -64,7 +64,7 @@ export class ShopUI {
     add(scene.add.rectangle(px, py, pw, ph, 0x000000, 0.93).setOrigin(0).setScrollFactor(0).setDepth(50))
     add(scene.add.rectangle(px + 1, py + 1, pw - 2, ph - 2, 0, 0)
       .setOrigin(0).setScrollFactor(0).setDepth(50).setStrokeStyle(1, 0xffd700, 0.5))
-    add(scene.add.text(px + pw / 2, py + 8, 'SHOP  [E] close', { fontSize: '12px', color: '#ffd700' })
+    add(scene.add.text(px + pw / 2, py + 8, 'SHOP  [TAB] close', { fontSize: '12px', color: '#ffd700' })
       .setOrigin(0.5, 0).setScrollFactor(0).setDepth(51))
 
     this.goldLabel = add(scene.add.text(px + pw / 2, py + 24, `Gold: ${this.currentGoldGetter?.() ?? 0}`,
@@ -103,7 +103,12 @@ export class ShopUI {
   }
 
   private desc(item: ItemDef): string {
-    if (item.slotType === 'consumable') return `Heal +${item.healAmount} HP`
+    if (item.slotType === 'consumable') {
+      if (item.healAmount)   return `Heal +${item.healAmount} HP`
+      if (item.speedBoostAmt) return `Speed +${item.speedBoostAmt} for ${(item.speedBoostMs ?? 0) / 1000}s`
+      if (item.shieldAmount) return `Shield +${item.shieldAmount} HP`
+      return 'Consumable'
+    }
     if (item.slotType === 'weapon') return `${item.rarity} ${item.weaponType ?? ''}`
     const parts: string[] = []
     if (item.bonusMaxHp)    parts.push(`+${item.bonusMaxHp} HP`)

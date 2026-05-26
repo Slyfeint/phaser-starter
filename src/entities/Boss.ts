@@ -72,7 +72,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         this.scene.time.delayedCall(260, () => {
           if (!this.active) return
           const d2 = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
-          if (d2 < this.config.atkRange * 1.3) player.takeDamage(dmg)
+          if (d2 < this.config.atkRange * 1.3) {
+            player.takeDamage(dmg)
+            this.scene.cameras.main.shake(180, 0.010)
+          }
           this.setTint(0xff8800)
           this.scene.time.delayedCall(140, () => this.active && this.clearTint())
         })
@@ -94,7 +97,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.scene.cameras.main.flash(350, 255, 60, 0)
     this.setTint(0xff3300)
     this.scene.tweens.add({ targets: this, scaleX: 1.65, scaleY: 1.65, duration: 300, ease: 'Back.Out' })
-    this.scene.time.delayedCall(900, () => this.active && this.clearTint())
 
     const boom = this.scene.add.text(this.x, this.y - 60, 'ENRAGE!', {
       fontSize: '22px', fontStyle: 'bold', color: '#ff3300',
@@ -114,7 +116,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       gfx.destroy()
       const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
       const dmg = Math.round(this.config.dmg * (this.phase === 2 ? this.config.phase2DmgMult * 1.5 : 1.5))
-      if (dist < radius) player.takeDamage(dmg)
+      if (dist < radius) {
+        player.takeDamage(dmg)
+        this.scene.cameras.main.shake(300, 0.016)
+      }
 
       const burst = this.scene.add.graphics().setDepth(10)
       burst.fillStyle(0xff2200, 0.4)
@@ -137,7 +142,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       body.setVelocity(Math.cos(kbAngle) * kbForce * 0.08, Math.sin(kbAngle) * kbForce * 0.08)
     }
     this.setTint(0xff4444)
-    this.scene.time.delayedCall(100, () => this.active && this.clearTint())
+    this.scene.time.delayedCall(100, () => {
+      if (!this.active) return
+      this.phase === 2 ? this.setTint(0xff3300) : this.clearTint()
+    })
     this.drawHpBar()
     if (this.hp <= 0) {
       this.hpBar.destroy()

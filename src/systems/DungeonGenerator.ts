@@ -1,3 +1,5 @@
+import Phaser from 'phaser'
+
 export const TILE_WALL = 1
 export const TILE_FLOOR = 2
 export const TILE_STAIRS = 3
@@ -37,8 +39,20 @@ function buildTunnel(tiles: number[][], r1: Room, r2: Room, doors: DoorPosition[
   for (let tx = mnx; tx <= mxx; tx++) tiles[r1.cy][tx] = TILE_FLOOR
   const mny = Math.min(r1.cy, r2.cy), mxy = Math.max(r1.cy, r2.cy)
   for (let ty = mny; ty <= mxy; ty++) tiles[ty][r2.cx] = TILE_FLOOR
-  // Place door at corridor elbow
-  doors.push({ x: r2.cx, y: r1.cy })
+  // Place door at room entrance — where the corridor meets the r2 boundary
+  let dx: number, dy: number
+  if (r1.cy < r2.y) {
+    dx = r2.cx; dy = r2.y                  // corridor enters r2 from above
+  } else if (r1.cy >= r2.y + r2.h) {
+    dx = r2.cx; dy = r2.y + r2.h - 1       // corridor enters r2 from below
+  } else if (r1.cx < r2.x) {
+    dx = r2.x; dy = r1.cy                  // horizontal approach from left
+  } else if (r1.cx >= r2.x + r2.w) {
+    dx = r2.x + r2.w - 1; dy = r1.cy      // horizontal approach from right
+  } else {
+    dx = r2.cx; dy = r2.cy                 // centers overlap — fallback
+  }
+  doors.push({ x: dx, y: dy })
 }
 
 export function generateDungeon(
@@ -73,7 +87,7 @@ export function generateDungeon(
     rooms.push({ x, y, w, h, cx, cy })
   }
 
-  if (rooms.length < minRooms && _depth < 12)
+  if (rooms.length < minRooms && _depth < 30)
     return generateDungeon(cols, rows, floor, isBossFloor, _depth + 1)
 
 
@@ -121,7 +135,7 @@ export function generateDungeon(
     }
   }
 
-  const shuffled = candidates.sort(() => Math.random() - 0.5)
+  const shuffled = Phaser.Utils.Array.Shuffle(candidates)
   for (let i = 0; i < Math.min(hazardCount, shuffled.length); i++) {
     const [col, row] = shuffled[i]
     hazards.push({ x: col, y: row, type: hazardTypes[i % hazardTypes.length] })

@@ -21,6 +21,9 @@ export interface ItemDef {
   bonusCrit?: number
   bonusLootMult?: number
   healAmount?: number
+  speedBoostAmt?: number
+  speedBoostMs?: number
+  shieldAmount?: number
 }
 
 function w(id: string, name: string, wt: WeaponType, r: Rarity): ItemDef {
@@ -90,10 +93,14 @@ export const ITEMS: ItemDef[] = [
   armor('legend_gloves',   'God Hands',       'gloves',   'legendary',0,0,0,0.50,0.10),
   // ── Rings ──
   armor('gold_ring',      'Gold Ring',        'ring',     'common',   0,0,0,0,0.08),
+  armor('swift_ring',     'Ring of Swiftness','ring',     'uncommon', 0,0,25),
+  armor('titan_ring',     'Titan Ring',       'ring',     'uncommon', 30),
   armor('assassin_ring',  "Assassin's Ring",  'ring',     'rare',     0,0,0,0,0.15),
   armor('epic_ring',      'Ring of Fortune',  'ring',     'epic',     0,0,0,0,0.20),
   armor('legend_ring',    'Omniring',         'ring',     'legendary',0,5,0,0,0.30),
   // ── Necklaces ──
+  armor('necklace_warding','Necklace of Warding','necklace','uncommon',0,8),
+  armor('power_amulet',   'Amulet of Power',  'necklace', 'rare',     0,0,0,0.80,0.05),
   armor('greed_necklace', 'Necklace of Greed','necklace', 'rare',     0,0,0,0,0,1.5),
   armor('epic_necklace',  'Amulet of Avarice','necklace', 'epic',     0,0,0,0,0,2.0),
   armor('legend_neck',    "Midas' Chain",     'necklace', 'legendary',0,0,0,0,0.10,3.0),
@@ -101,6 +108,8 @@ export const ITEMS: ItemDef[] = [
   { id:'bandage',        name:'Bandage',        slotType:'consumable', bagSize:1, rarity:'common',    healAmount:40  },
   { id:'greater_bandage',name:'Greater Bandage',slotType:'consumable', bagSize:1, rarity:'uncommon',  healAmount:100 },
   { id:'elixir',         name:'Elixir',         slotType:'consumable', bagSize:1, rarity:'rare',      healAmount:200 },
+  { id:'speed_potion',   name:'Speed Potion',   slotType:'consumable', bagSize:1, rarity:'uncommon',  speedBoostAmt:120, speedBoostMs:8000 },
+  { id:'shield_flask',   name:'Shield Flask',   slotType:'consumable', bagSize:1, rarity:'rare',      shieldAmount:60 },
 ]
 
 export const WEAPON_ITEMS = ITEMS.filter(i => i.slotType === 'weapon')

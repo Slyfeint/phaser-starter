@@ -35,9 +35,20 @@ export const SaveManager = {
   load(): SaveData {
     try {
       const raw = localStorage.getItem(KEY)
-      if (!raw) return JSON.parse(JSON.stringify(DEFAULT))
-      return { ...JSON.parse(JSON.stringify(DEFAULT)), ...JSON.parse(raw) }
-    } catch { return JSON.parse(JSON.stringify(DEFAULT)) }
+      if (!raw) return structuredClone(DEFAULT)
+      const d = structuredClone(DEFAULT)
+      const p = JSON.parse(raw) as Partial<SaveData>
+      return {
+        ...d,
+        ...p,
+        stats: { ...d.stats, ...(p.stats ?? {}) },
+        progress: {
+          dungeon: { ...d.progress.dungeon, ...(p.progress?.dungeon ?? {}) },
+          castle:  { ...d.progress.castle,  ...(p.progress?.castle  ?? {}) },
+          caves:   { ...d.progress.caves,   ...(p.progress?.caves   ?? {}) },
+        },
+      }
+    } catch { return structuredClone(DEFAULT) }
   },
   save(data: SaveData) {
     try { localStorage.setItem(KEY, JSON.stringify(data)) } catch { /* */ }

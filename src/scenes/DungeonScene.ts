@@ -56,15 +56,21 @@ export class DungeonScene extends Phaser.Scene {
   private floor = 1
   private nearShop = false
   private shopRoomCenter?: Phaser.Math.Vector2
+  private roomEnemyCounts = new Map<number, number>()
+  private enemiesKilled = 0
 
   constructor() { super('DungeonScene') }
 
   create() {
+    // Clear any lingering camera fade from the previous scene run (scene.restart() can preserve it)
+    this.cameras.main.resetFX()
     this.score = 0
     this.gameEnding = false
     this.hazards = []
     this.doors = []
     this.droppedItemRejectUntil = new Map()
+    this.roomEnemyCounts = new Map()
+    this.enemiesKilled = 0
     this.boss = undefined
     this.portal = undefined
     this.stairsSprite = undefined
@@ -96,9 +102,29 @@ export class DungeonScene extends Phaser.Scene {
     const miniRoomIdx = this.floor === 3 ? this.dungeon.bossRoomIdx : this.dungeon.stairsRoomIdx
     this.minimap = new Minimap(this, this.dungeon, miniRoomIdx)
 
+    // Boss bar: the Boss emits 'boss-spawned' in its constructor (before HUD exists),
+    // so we show it directly here if a boss was spawned this floor.
+    { const b = this.boss as unknown as Boss | undefined; if (b) this.hud.showBossBar(b.bossName) }
+
+    // Fade in from black — needed after scene.start() to clear the previous fadeOut
+    this.cameras.main.fadeIn(400, 0, 0, 0)
+
+    // Floor transition announcement for floors 2+
+    if (this.floor > 1) {
+      const THEME_NAMES: Record<string, string> = { dungeon: 'Dungeon', castle: 'Castle', caves: 'Caves' }
+      const { width, height } = this.scale
+      const floorTxt = this.add.text(width / 2, height * 0.3,
+        `Floor ${this.floor}  —  ${THEME_NAMES[this.theme] ?? this.theme}`, {
+        fontSize: '30px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 4,
+      }).setScrollFactor(0).setDepth(200).setOrigin(0.5).setAlpha(0)
+      this.tweens.add({
+        targets: floorTxt, alpha: 1, duration: 500, delay: 300, yoyo: true, hold: 900,
+        onComplete: () => { if (floorTxt.active) floorTxt.destroy() },
+      })
+    }
+
     this.events.on('player-attack', this.processAttack, this)
     this.events.on('player-dead', () => { if (!this.gameEnding) this.endGame(false) })
-    this.events.on('boss-spawned', (name: string) => this.hud.showBossBar(name))
     this.events.on('boss-hp', (pct: number) => this.hud.updateBossBar(pct))
     this.events.on('boss-defeated', this.handleBossDefeated, this)
     this.events.on('boss-drop', (item: ItemDef, x: number, y: number) => this.spawnDrop(x, y, item))
@@ -156,23 +182,28 @@ export class DungeonScene extends Phaser.Scene {
         const type = pickSpawnType(this.theme, this.floor)
         const mb = new Enemy(this, room.cx * TILE + TILE / 2, room.cy * TILE + TILE / 2, type, true, this.floor)
         mb.setWallChecker((x1, y1, x2, y2) => this.hasWallBetween(x1, y1, x2, y2))
+        mb.setData('roomIdx', idx)
+        this.roomEnemyCounts.set(idx, 1)
         this.enemies.add(mb)
         return
       }
 
       const count = spawnCountForRoom(this.floor)
+      this.roomEnemyCounts.set(idx, count)
       for (let n = 0; n < count; n++) {
         const ex = (room.x + 1 + Math.floor(Math.random() * (room.w - 2))) * TILE + TILE / 2
         const ey = (room.y + 1 + Math.floor(Math.random() * (room.h - 2))) * TILE + TILE / 2
         const type = pickSpawnType(this.theme, this.floor)
         const enemy = new Enemy(this, ex, ey, type, false, this.floor)
         enemy.setWallChecker((x1, y1, x2, y2) => this.hasWallBetween(x1, y1, x2, y2))
+        enemy.setData('roomIdx', idx)
         this.enemies.add(enemy)
       }
     })
 
     if (this.floor === 3) {
       const bossRoom = rooms[bossRoomIdx]
+      if (!bossRoom) return
       this.boss = new Boss(this, bossRoom.cx * TILE + TILE / 2, bossRoom.cy * TILE + TILE / 2, getBossType(this.theme))
     }
   }
@@ -203,7 +234,7 @@ export class DungeonScene extends Phaser.Scene {
     const sy = room.cy * TILE + TILE / 2
     this.stairsSprite = this.add.sprite(sx, sy, 'stairs').setDepth(3)
     this.physics.add.existing(this.stairsSprite, true)
-    this.add.text(sx, sy - 22, this.floor < 3 ? 'NEXT\nFLOOR' : 'EXIT', {
+    this.add.text(sx, sy - 22, 'NEXT\nFLOOR', {
       fontSize: '8px', color: '#88aaff', align: 'center',
     }).setOrigin(0.5).setDepth(4)
   }
@@ -238,7 +269,6 @@ export class DungeonScene extends Phaser.Scene {
     this.cameras.main
       .setBounds(0, 0, COLS * TILE, ROWS * TILE)
       .startFollow(this.player, true, 0.1, 0.1)
-      .setZoom(1.4)
   }
 
   private setupColliders() {
@@ -335,9 +365,18 @@ export class DungeonScene extends Phaser.Scene {
       this.hud.showDamageNumber(obj.x, obj.y - 20, dmg, isCrit)
 
       if (died) {
+        this.enemiesKilled++
         this.score += Math.round((obj.lootValue ?? 0) * stats.lootMult)
         const drop = obj.rollDrop?.()
         if (drop) this.spawnDrop(obj.x, obj.y, drop)
+        // Room-clear tracking
+        const asEnemy = obj as unknown as { getData?: (k: string) => unknown }
+        const roomIdx = asEnemy.getData?.('roomIdx')
+        if (typeof roomIdx === 'number') {
+          const remaining = (this.roomEnemyCounts.get(roomIdx) ?? 1) - 1
+          this.roomEnemyCounts.set(roomIdx, remaining)
+          if (remaining <= 0) this.onRoomCleared(roomIdx, obj.x, obj.y)
+        }
       }
     }
 
@@ -388,6 +427,7 @@ export class DungeonScene extends Phaser.Scene {
   private handleBossDefeated() {
     this.hud.hideBossBar()
     const room = this.dungeon.rooms[this.dungeon.bossRoomIdx]
+    if (!room) { this.endGame(true); return }
     this.spawnPortal(room.cx * TILE + TILE / 2, room.cy * TILE + TILE / 2)
     this.cameras.main.flash(500, 255, 200, 0)
     const txt = this.add.text(room.cx * TILE + TILE / 2, room.cy * TILE - 60, 'BOSS DEFEATED!',
@@ -417,10 +457,12 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private advanceFloor() {
+    if (this.gameEnding) return
     this.gameEnding = true
     this.physics.world.pause()
-    this.time.removeAllEvents()
-    this.tweens.killAll()
+    this.player.setVelocity(0, 0)
+    // Restore 25% max HP between floors
+    this.player.hp = Math.min(this.player.effectiveMaxHp, Math.round(this.player.hp + this.player.effectiveMaxHp * 0.25))
     const runState: RunState = {
       hp: this.player.hp,
       score: this.score,
@@ -429,9 +471,12 @@ export class DungeonScene extends Phaser.Scene {
     }
     this.registry.set('runState', runState)
     this.registry.set('currentFloor', this.floor + 1)
-    this.player.setVelocity(0, 0)
-    this.cameras.main.fadeOut(500, 0, 0, 0)
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart())
+    this.cameras.main.fadeOut(400, 0, 0, 0)
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.time.removeAllEvents()
+      this.tweens.killAll()
+      this.scene.start('DungeonScene')
+    })
   }
 
   private endGame(victory: boolean) {
@@ -439,8 +484,6 @@ export class DungeonScene extends Phaser.Scene {
     this.gameEnding = true
     this.player.setVelocity(0, 0)
     this.physics.world.pause()
-    this.time.removeAllEvents()   // cancel every pending timer callback
-    this.tweens.killAll()          // kill every tween; onComplete is NOT called
 
     const save = SaveManager.load()
     if (victory) {
@@ -449,6 +492,9 @@ export class DungeonScene extends Phaser.Scene {
       save.bag = this.player.bag.serialize()
       save.stats.totalGold += this.score
       save.stats.runsCompleted += 1
+      if (!save.progress[this.theme]) {
+        save.progress[this.theme] = { highestFloor: 0, bossDefeated: false }
+      }
       const prog = save.progress[this.theme]
       if (this.floor > prog.highestFloor) prog.highestFloor = this.floor
       if (this.floor === 3) prog.bossDefeated = true
@@ -461,10 +507,12 @@ export class DungeonScene extends Phaser.Scene {
     this.registry.remove('runState')
     this.registry.set('currentFloor', 1)
 
-    const { score, floor, theme } = this
-    this.cameras.main.fadeOut(700, 0, 0, 0)
+    const { score, floor, theme, enemiesKilled } = this
+    this.cameras.main.fadeOut(600, 0, 0, 0)
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('GameOver', { score, victory, floor, theme })
+      this.time.removeAllEvents()
+      this.tweens.killAll()
+      this.scene.start('GameOver', { score, victory, floor, theme, enemiesKilled })
     })
   }
 
@@ -479,6 +527,26 @@ export class DungeonScene extends Phaser.Scene {
       if (tile && tile.index === TILE_WALL) return true
     }
     return false
+  }
+
+  private onRoomCleared(roomIdx: number, lastKillX: number, lastKillY: number) {
+    const room = this.dungeon.rooms[roomIdx]
+    if (!room) return
+    const cx = room.cx * TILE + TILE / 2
+    const cy = room.cy * TILE + TILE / 2
+    // Scatter 3 coins around the room center
+    for (let i = 0; i < 3; i++) {
+      const ox = (Math.random() - 0.5) * 48
+      const oy = (Math.random() - 0.5) * 48
+      this.lootGroup.add(new Loot(this, cx + ox, cy + oy, 'coin'))
+    }
+    // 30% chance of a bandage consumable drop
+    if (Math.random() < 0.3) {
+      const bandage = ITEMS.find(i => i.id === 'bandage')
+      if (bandage) this.spawnDrop(cx, cy + 22, bandage)
+    }
+    this.hud.showPickupText(lastKillX, lastKillY - 30, 'Room Cleared! +Gold')
+    this.lootGroup.refresh()
   }
 
   private spawnDoors() {
@@ -505,6 +573,13 @@ export class DungeonScene extends Phaser.Scene {
     this.input.off('pointerdown')
     this.input.off('pointermove')
     this.input.off('pointerup')
+    this.input.keyboard?.removeAllListeners('keydown-ESC')
+    this.events.off('player-attack', this.processAttack, this)
+    this.events.off('player-dead')
+    this.events.off('boss-hp')
+    this.events.off('boss-defeated', this.handleBossDefeated, this)
+    this.events.off('boss-drop')
+    this.events.off('miniboss-killed', this.handleMinibossKilled, this)
   }
 
   update(_time: number, delta: number) {

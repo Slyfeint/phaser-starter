@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Inventory } from '../systems/Inventory'
 import { Bag } from '../systems/Bag'
 import { WEAPONS, type WeaponDef } from '../systems/WeaponDefs'
+import type { ItemDef } from '../systems/ItemDefs'
 import { getKey } from '../systems/KeyBindings'
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -20,6 +21,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private rollCooldown = 0
   private readonly ROLL_CD = 1200
   private readonly ROLL_DURATION = 200
+  private _tempSpeedBonus = 0
+  private _tempSpeedTimer = 0
+  private _shieldHp = 0
 
   private hpGfx!: Phaser.GameObjects.Graphics
   private hpTimer = 0
@@ -51,8 +55,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   get moveSpeed(): number {
-    return this.baseSpeed + this.inventory.getStats().speedBonus
+    return this.baseSpeed + this.inventory.getStats().speedBonus + this._tempSpeedBonus
   }
+
+  get shieldHp(): number { return this._shieldHp }
 
   get effectiveMaxHp(): number {
     return this.maxHp + this.inventory.getStats().maxHpBonus
@@ -130,6 +136,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   update(delta: number) {
     this.atkCooldown  = Math.max(0, this.atkCooldown  - delta)
     this.rollCooldown = Math.max(0, this.rollCooldown - delta)
+    if (this._tempSpeedTimer > 0) {
+      this._tempSpeedTimer -= delta
+      if (this._tempSpeedTimer <= 0) { this._tempSpeedTimer = 0; this._tempSpeedBonus = 0 }
+    }
 
     if (this.hpTimer > 0) {
       this.hpTimer -= delta
@@ -170,12 +180,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount: number): boolean {
     if (this.isRolling) return false
     const reduced = Math.max(1, Math.round(amount * (1 - this.inventory.getStats().armor / 100)))
-    this.hp = Math.max(0, this.hp - reduced)
+    // Shield absorption
+    if (this._shieldHp > 0) {
+      const absorbed = Math.min(this._shieldHp, reduced)
+      this._shieldHp -= absorbed
+      const leftover = reduced - absorbed
+      if (leftover <= 0) {
+        this.setTint(0x4488ff)
+        this.scene.time.delayedCall(150, () => { if (this.active && this.hp > 0) this.restoreCosmeticTint() })
+        return false
+      }
+      this.hp = Math.max(0, this.hp - leftover)
+    } else {
+      this.hp = Math.max(0, this.hp - reduced)
+    }
     this.hpTimer = this.HP_SHOW_MS
     this.setTint(0xff3333)
     this.scene.time.delayedCall(200, () => { if (this.active && this.hp > 0) this.restoreCosmeticTint() })
     if (this.hp <= 0) this.scene.events.emit('player-dead')
     return this.hp <= 0
+  }
+
+  useConsumable(item: ItemDef) {
+    if (item.healAmount)                        this.heal(item.healAmount)
+    if (item.speedBoostAmt && item.speedBoostMs) {
+      this._tempSpeedBonus = Math.max(this._tempSpeedBonus, item.speedBoostAmt)
+      this._tempSpeedTimer = Math.max(this._tempSpeedTimer, item.speedBoostMs)
+    }
+    if (item.shieldAmount) this._shieldHp += item.shieldAmount
+    this.hpTimer = this.HP_SHOW_MS
   }
 
   heal(amount: number) {

@@ -5,7 +5,8 @@ const SCALE = 2
 const PAD = 4
 
 export class Minimap {
-  private gfx: Phaser.GameObjects.Graphics
+  private baseGfx: Phaser.GameObjects.Graphics
+  private dotGfx: Phaser.GameObjects.Graphics
   private data: DungeonData
   private ox: number
   private oy: number
@@ -20,38 +21,43 @@ export class Minimap {
     this.ox = scene.scale.width - mapW - PAD - 10
     this.oy = PAD + 10
 
-    this.gfx = scene.add.graphics().setScrollFactor(0).setDepth(22)
+    this.baseGfx = scene.add.graphics().setScrollFactor(0).setDepth(22)
+    this.dotGfx  = scene.add.graphics().setScrollFactor(0).setDepth(23)
     this.drawBase(mapW, mapH)
   }
 
   private drawBase(mapW: number, mapH: number) {
-    this.gfx.fillStyle(0x000000, 0.6)
-    this.gfx.fillRect(this.ox - PAD, this.oy - PAD, mapW + PAD * 2, mapH + PAD * 2)
+    this.baseGfx.fillStyle(0x000000, 0.6)
+    this.baseGfx.fillRect(this.ox - PAD, this.oy - PAD, mapW + PAD * 2, mapH + PAD * 2)
 
-    for (const room of this.data.rooms) {
-      this.gfx.fillStyle(0x334455, 1)
-      this.gfx.fillRect(this.ox + room.x * SCALE, this.oy + room.y * SCALE, room.w * SCALE, room.h * SCALE)
+    const { rooms, shopRoomIdx, bossRoomIdx, stairsRoomIdx, minibossRoomIdx } = this.data
+    for (let i = 0; i < rooms.length; i++) {
+      const room = rooms[i]
+      let color = 0x334455
+      if (i === 0)                    color = 0x223355
+      else if (i === bossRoomIdx)     color = 0x550000
+      else if (i === stairsRoomIdx)   color = 0x003355
+      else if (i === shopRoomIdx)     color = 0x554400
+      else if (i === minibossRoomIdx) color = 0x442200
+      this.baseGfx.fillStyle(color, 1)
+      this.baseGfx.fillRect(this.ox + room.x * SCALE, this.oy + room.y * SCALE, room.w * SCALE, room.h * SCALE)
     }
   }
 
   update(playerWorldX: number, playerWorldY: number) {
     const tileSize = 32
-    const mapW = this.data.cols * SCALE
-    const mapH = this.data.rows * SCALE
-
-    this.gfx.clear()
-    this.drawBase(mapW, mapH)
+    this.dotGfx.clear()
 
     // Portal dot
     const prx = this.ox + this.portalRoom.cx * SCALE
     const pry = this.oy + this.portalRoom.cy * SCALE
-    this.gfx.fillStyle(0x00ffcc, 1)
-    this.gfx.fillRect(prx - 2, pry - 2, 4, 4)
+    this.dotGfx.fillStyle(0x00ffcc, 1)
+    this.dotGfx.fillRect(prx - 2, pry - 2, 4, 4)
 
     // Player dot
     const px = this.ox + (playerWorldX / tileSize) * SCALE
     const py = this.oy + (playerWorldY / tileSize) * SCALE
-    this.gfx.fillStyle(0xffffff, 1)
-    this.gfx.fillRect(px - 2, py - 2, 4, 4)
+    this.dotGfx.fillStyle(0xffffff, 1)
+    this.dotGfx.fillRect(px - 2, py - 2, 4, 4)
   }
 }

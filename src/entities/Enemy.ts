@@ -42,8 +42,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private timeAccum = 0
   private burstCooldown = 0
   private hpBar!: Phaser.GameObjects.Graphics
+  private starLabel?: Phaser.GameObjects.Text
   private _wallChecker?: (x1: number, y1: number, x2: number, y2: number) => boolean
   private _lastHpDrawn = -1
+  private _hasAggrod = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType = 'skeleton', miniboss = false, floor = 1) {
     super(scene, x, y, TEXTURE[type])
@@ -65,7 +67,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     if (miniboss) {
       this.setTint(0xffcc00)
-      scene.add.text(x, y - 32, '★', { fontSize: '14px', color: '#ffcc00' })
+      this.starLabel = scene.add.text(x, y - 32, '★', { fontSize: '14px', color: '#ffcc00' })
         .setOrigin(0.5).setDepth(7)
     }
 
@@ -88,6 +90,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     else if (dist < this.stats.chaseRange)  this.aiState = 'chase'
     else                                     this.aiState = 'idle'
 
+    if (this.aiState !== 'idle' && !this._hasAggrod) {
+      this._hasAggrod = true
+      this.showAggroIndicator()
+    }
+
     switch (this.stats.ai) {
       case 'melee':   this.updateMelee(delta, dist, player); break
       case 'erratic': this.updateErratic(dist, player); break
@@ -95,6 +102,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       case 'ranged':  this.updateRanged(delta, dist, player); break
     }
 
+    if (this.starLabel) this.starLabel.setPosition(this.x, this.y - 32)
     this.drawHpBar()
   }
 
@@ -231,11 +239,36 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.drawHpBar()
     if (this.hp <= 0) {
       this.hpBar.destroy()
+      this.spawnDeathParticles()
       if (this.isMiniboss) this.scene.events.emit('miniboss-killed', this)
       this.destroy()
       return true
     }
     return false
+  }
+
+  private showAggroIndicator() {
+    const ind = this.scene.add.text(this.x, this.y - 28, '!', {
+      fontSize: '18px', fontStyle: 'bold', color: '#ff8800', stroke: '#441100', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(15)
+    this.scene.tweens.add({ targets: ind, y: ind.y - 16, alpha: 0, duration: 600,
+      onComplete: () => { if (ind.active) ind.destroy() } })
+  }
+
+  private spawnDeathParticles() {
+    const colors = this.isMiniboss ? [0xffcc00, 0xff8800, 0xffff44] : [0xff4444, 0xcc2222, 0xff8800]
+    for (let i = 0; i < 5; i++) {
+      const angle = (Math.PI * 2 / 5) * i + Math.random() * 0.4
+      const speed = 40 + Math.random() * 60
+      const p = this.scene.add.graphics().setDepth(15)
+      p.fillStyle(colors[i % colors.length], 1)
+      p.fillRect(-3, -3, 6, 6)
+      p.setPosition(this.x, this.y)
+      this.scene.tweens.add({ targets: p,
+        x: this.x + Math.cos(angle) * speed, y: this.y + Math.sin(angle) * speed,
+        alpha: 0, duration: 320, ease: 'Power2',
+        onComplete: () => { if (p.active) p.destroy() } })
+    }
   }
 
   rollDrop(): ItemDef | null {
@@ -264,6 +297,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   destroy(fromScene = false) {
     this.hpBar?.destroy()
+    this.starLabel?.destroy()
     super.destroy(fromScene)
   }
 }
