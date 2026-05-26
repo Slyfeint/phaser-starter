@@ -14,6 +14,7 @@ export interface ItemDef {
   bagSize: 1 | 2 | 3
   weaponType?: WeaponType
   rarity: Rarity
+  setId?: string
   bonusMaxHp?: number
   bonusArmor?: number
   bonusSpeed?: number
@@ -24,10 +25,13 @@ export interface ItemDef {
   speedBoostAmt?: number
   speedBoostMs?: number
   shieldAmount?: number
+  damageBoostPct?: number
+  damageBoostMs?: number
+  smokeEffect?: boolean
 }
 
 function w(id: string, name: string, wt: WeaponType, r: Rarity): ItemDef {
-  const sz: Record<WeaponType, 1|2|3> = { dagger: 1, sword: 2, mace: 2, spear: 3 }
+  const sz: Record<WeaponType, 1|2|3> = { dagger: 1, sword: 2, mace: 2, spear: 3, axe: 2, staff: 2, bow: 2, dual_dagger: 1 }
   return { id, name, slotType: 'weapon', bagSize: sz[wt], weaponType: wt, rarity: r }
 }
 
@@ -104,14 +108,71 @@ export const ITEMS: ItemDef[] = [
   armor('greed_necklace', 'Necklace of Greed','necklace', 'rare',     0,0,0,0,0,1.5),
   armor('epic_necklace',  'Amulet of Avarice','necklace', 'epic',     0,0,0,0,0,2.0),
   armor('legend_neck',    "Midas' Chain",     'necklace', 'legendary',0,0,0,0,0.10,3.0),
+  // ── Set Items ──
+  // Shadow set (ring+necklace) → +12% crit total, dagger bleed +2 ticks
+  { id:'shadow_ring',      name:'Shadow Ring',     slotType:'ring',      bagSize:1, rarity:'rare',  bonusCrit:0.06, setId:'shadow' },
+  { id:'shadow_necklace',  name:'Shadow Necklace', slotType:'necklace',  bagSize:1, rarity:'rare',  bonusCrit:0.06, setId:'shadow' },
+  // Iron set (helm+chest) → reflect 8% damage on hit
+  { id:'iron_set_helm',    name:'Iron Bastion',    slotType:'helm',      bagSize:2, rarity:'uncommon', bonusMaxHp:20, bonusArmor:4, setId:'iron'   },
+  { id:'iron_set_chest',   name:'Iron Fortress',   slotType:'chest',     bagSize:2, rarity:'uncommon', bonusMaxHp:20, bonusArmor:4, setId:'iron'   },
+  // Wind set (greaves+gloves) → roll CD −200ms (bonus on top of items' speed)
+  { id:'wind_set_greaves', name:'Wind Treads',     slotType:'legs',      bagSize:2, rarity:'uncommon', bonusSpeed:18, setId:'wind'  },
+  { id:'wind_set_gloves',  name:'Wind Grips',      slotType:'gloves',    bagSize:1, rarity:'uncommon', bonusSpeed:18, bonusAtkSpeed:0.90, setId:'wind' },
+  // ── Axes ──
+  w('iron_axe',   'Iron Axe',    'axe', 'common'),
+  w('war_axe',    'War Axe',     'axe', 'uncommon'),
+  w('great_axe',  'Great Axe',   'axe', 'rare'),
+  w('doom_axe',   'Doom Axe',    'axe', 'epic'),
+  // ── Staves ──
+  w('oak_staff',    'Oak Staff',    'staff', 'common'),
+  w('arcane_staff', 'Arcane Staff', 'staff', 'uncommon'),
+  w('storm_staff',  'Storm Staff',  'staff', 'rare'),
+  w('void_staff',   'Void Staff',   'staff', 'epic'),
   // ── Consumables ──
   { id:'bandage',        name:'Bandage',        slotType:'consumable', bagSize:1, rarity:'common',    healAmount:40  },
   { id:'greater_bandage',name:'Greater Bandage',slotType:'consumable', bagSize:1, rarity:'uncommon',  healAmount:100 },
   { id:'elixir',         name:'Elixir',         slotType:'consumable', bagSize:1, rarity:'rare',      healAmount:200 },
   { id:'speed_potion',   name:'Speed Potion',   slotType:'consumable', bagSize:1, rarity:'uncommon',  speedBoostAmt:120, speedBoostMs:8000 },
   { id:'shield_flask',   name:'Shield Flask',   slotType:'consumable', bagSize:1, rarity:'rare',      shieldAmount:60 },
+  { id:'whetstone',      name:'Whetstone',      slotType:'consumable', bagSize:1, rarity:'uncommon',  damageBoostPct:0.30, damageBoostMs:10000 },
+  { id:'smoke_bomb',     name:'Smoke Bomb',     slotType:'consumable', bagSize:1, rarity:'uncommon',  speedBoostAmt:60, speedBoostMs:3000, smokeEffect:true },
+  // ── Bow weapons ──
+  w('wood_bow',    'Wood Bow',        'bow', 'common'),
+  w('hunter_bow',  'Hunter Bow',      'bow', 'uncommon'),
+  w('elven_bow',   'Elven Bow',       'bow', 'rare'),
+  w('war_bow',     'War Bow',         'bow', 'epic'),
+  w('storm_bow',   'Storm Bow',       'bow', 'legendary'),
+  // ── Dual Daggers ──
+  w('twin_knives',  'Twin Knives',    'dual_dagger', 'common'),
+  w('twin_daggers', 'Twin Daggers',   'dual_dagger', 'uncommon'),
+  w('twin_blades',  'Twin Blades',    'dual_dagger', 'rare'),
+  w('shadow_twins', 'Shadow Twins',   'dual_dagger', 'epic'),
+  w('void_fangs',   'Void Fangs',     'dual_dagger', 'legendary'),
+  // ── Rogue Gear ──
+  { id:'rogue_mask',      name:"Rogue's Mask",        slotType:'helm',     bagSize:2, rarity:'uncommon', bonusCrit:0.10, bonusArmor:8 },
+  { id:'shadow_leather',  name:'Shadow Leather',       slotType:'chest',    bagSize:2, rarity:'uncommon', bonusSpeed:15,  bonusCrit:0.05 },
+  { id:'swift_boots',     name:'Swift Boots',          slotType:'legs',     bagSize:2, rarity:'common',   bonusSpeed:30 },
+  { id:'thief_gloves',    name:"Thief's Gloves",       slotType:'gloves',   bagSize:1, rarity:'uncommon', bonusAtkSpeed:0.78, bonusCrit:0.05 },
+  { id:'shadowstep_ring', name:'Shadowstep Ring',      slotType:'ring',     bagSize:1, rarity:'rare',     bonusCrit:0.12, bonusSpeed:15 },
+  { id:'rogue_cloak',     name:'Rogue Cloak',          slotType:'necklace', bagSize:1, rarity:'rare',     bonusCrit:0.08, bonusArmor:5 },
+  // ── Ranger Gear ──
+  { id:'ranger_hood',     name:'Ranger Hood',          slotType:'helm',     bagSize:2, rarity:'uncommon', bonusMaxHp:20,  bonusCrit:0.05 },
+  { id:'ranger_cloak',    name:'Ranger Cloak',         slotType:'chest',    bagSize:2, rarity:'uncommon', bonusSpeed:20,  bonusArmor:8 },
+  { id:'tracking_boots',  name:'Tracking Boots',       slotType:'legs',     bagSize:2, rarity:'common',   bonusSpeed:25 },
+  { id:'archer_gloves',   name:"Archer's Gloves",      slotType:'gloves',   bagSize:1, rarity:'uncommon', bonusAtkSpeed:0.75 },
+  { id:'hawkeye_ring',    name:'Hawk Eye Ring',         slotType:'ring',     bagSize:1, rarity:'rare',     bonusCrit:0.10, bonusSpeed:15 },
+  { id:'marksman_neck',   name:"Marksman's Pendant",   slotType:'necklace', bagSize:1, rarity:'rare',     bonusCrit:0.08, bonusLootMult:1.2 },
+  // ── Mage Gear ──
+  { id:'arcane_hood',     name:'Arcane Hood',          slotType:'helm',     bagSize:2, rarity:'uncommon', bonusCrit:0.12 },
+  { id:'arcane_robes',    name:'Arcane Robes',         slotType:'chest',    bagSize:2, rarity:'uncommon', bonusMaxHp:20, bonusArmor:5 },
+  { id:'mage_greaves',    name:'Mage Greaves',         slotType:'legs',     bagSize:2, rarity:'common',   bonusSpeed:30 },
+  { id:'spellcast_gloves',name:"Spellcaster's Gloves", slotType:'gloves',   bagSize:1, rarity:'uncommon', bonusAtkSpeed:0.75 },
+  { id:'arcane_ring',     name:'Arcane Ring',          slotType:'ring',     bagSize:1, rarity:'rare',     bonusCrit:0.12 },
+  { id:'sorcerer_neck',   name:"Sorcerer's Necklace",  slotType:'necklace', bagSize:1, rarity:'rare',     bonusCrit:0.08, bonusLootMult:1.3 },
+  { id:'arcane_tome',     name:'Arcane Tome',          slotType:'weapon',   bagSize:2, rarity:'rare',     weaponType:'staff' as WeaponType },
 ]
 
+export const ALL_ITEMS    = ITEMS
 export const WEAPON_ITEMS = ITEMS.filter(i => i.slotType === 'weapon')
 export const ARMOR_ITEMS  = ITEMS.filter(i => i.slotType !== 'weapon' && i.slotType !== 'consumable')
 

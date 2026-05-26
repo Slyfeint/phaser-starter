@@ -4,8 +4,9 @@ import type { ItemDef } from '../systems/ItemDefs'
 import { WEAPON_ITEMS, ARMOR_ITEMS } from '../systems/ItemDefs'
 import { rollRarity } from '../systems/Rarity'
 import type { EnemyTier } from '../systems/Rarity'
+import { type StatusEffect, applyStatus, tickStatuses, pruneExpired, SLOW } from '../systems/StatusEffect'
 
-export type EnemyType = 'skeleton' | 'orc' | 'bat' | 'spider' | 'guard' | 'knight' | 'dark_mage' | 'cave_troll'
+export type EnemyType = 'skeleton' | 'orc' | 'bat' | 'spider' | 'guard' | 'knight' | 'dark_mage' | 'cave_troll' | 'berserker' | 'golem' | 'wraith'
 type AIPattern = 'melee' | 'erratic' | 'burst' | 'ranged'
 
 interface EnemyStat {
@@ -24,12 +25,22 @@ const STATS: Record<EnemyType, EnemyStat> = {
   knight:     { hp:80,  speed:55,  dmg:28, chaseRange:180, atkRange:42,  loot:40, atkCd:2200, kbResist:0.2, dropChance:0.45, tier:'elite',   ai:'melee'   },
   dark_mage:  { hp:30,  speed:65,  dmg:18, chaseRange:200, atkRange:140, loot:25, atkCd:2200, kbResist:1.0, dropChance:0.30, tier:'regular', ai:'ranged'  },
   cave_troll: { hp:100, speed:45,  dmg:35, chaseRange:200, atkRange:50,  loot:55, atkCd:2500, kbResist:0.1, dropChance:0.55, tier:'elite',   ai:'melee'   },
+  berserker:  { hp:45,  speed:95,  dmg:28, chaseRange:220, atkRange:40,  loot:30, atkCd:1000, kbResist:0.6, dropChance:0.35, tier:'regular', ai:'melee'   },
+  golem:      { hp:130, speed:38,  dmg:38, chaseRange:200, atkRange:52,  loot:60, atkCd:3000, kbResist:0.05,dropChance:0.55, tier:'elite',   ai:'melee'   },
+  wraith:     { hp:22,  speed:110, dmg:12, chaseRange:240, atkRange:180, loot:20, atkCd:3500, kbResist:1.5, dropChance:0.25, tier:'regular', ai:'ranged'  },
 }
 
 const TEXTURE: Record<EnemyType, string> = {
   skeleton: 'enemy_skeleton', orc: 'enemy_orc', bat: 'enemy_bat',
   spider: 'enemy_spider', guard: 'enemy_guard', knight: 'enemy_knight',
   dark_mage: 'enemy_dark_mage', cave_troll: 'enemy_cave_troll',
+  berserker: 'enemy_orc', golem: 'enemy_cave_troll', wraith: 'enemy_bat',
+}
+
+const TINT: Partial<Record<EnemyType, number>> = {
+  berserker: 0xff8844,
+  golem:     0x8899aa,
+  wraith:    0xaa66ff,
 }
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
@@ -43,23 +54,39 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   private burstCooldown = 0
   private hpBar!: Phaser.GameObjects.Graphics
   private starLabel?: Phaser.GameObjects.Text
+  private readonly _type: EnemyType
   private _wallChecker?: (x1: number, y1: number, x2: number, y2: number) => boolean
   private _lastHpDrawn = -1
   private _hasAggrod = false
+  private _statusEffects: StatusEffect[] = []
+  private _statusTintTimer = 0
+  private _slowMult = 1
+  private _speedMult = 1
+  private _dmgMult = 1
+  private _berserkMode = false
+  private _stompTimer = 4000
+  private _phaseTimer = 4000
+  private _phaseActive = false
+  private _blindedTimer = 0
 
   constructor(scene: Phaser.Scene, x: number, y: number, type: EnemyType = 'skeleton', miniboss = false, floor = 1) {
     super(scene, x, y, TEXTURE[type])
     scene.add.existing(this)
     scene.physics.add.existing(this)
     this.setDepth(4)
+    this._type = type
     this.isMiniboss = miniboss
+    const tintColor = TINT[type]
+    if (tintColor) this.setTint(tintColor)
 
     const base = STATS[type]
     const floorMult = 1 + (floor - 1) * 0.25
+    const diff = scene.registry.get('diffMult') as { hp: number; dmg: number } | null
+    const hpM = diff?.hp ?? 1, dmgM = diff?.dmg ?? 1
     this.stats = miniboss
-      ? { ...base, hp: base.hp * 3, dmg: base.dmg * 2, speed: base.speed * 1.3,
-          dropChance: 1.0, tier: 'miniboss' as EnemyTier }
-      : { ...base, hp: Math.round(base.hp * floorMult), dmg: Math.round(base.dmg * floorMult) }
+      ? { ...base, hp: Math.round(base.hp * 3 * hpM), dmg: Math.round(base.dmg * 2 * dmgM),
+          speed: base.speed * 1.3, dropChance: 1.0, tier: 'miniboss' as EnemyTier }
+      : { ...base, hp: Math.round(base.hp * floorMult * hpM), dmg: Math.round(base.dmg * floorMult * dmgM) }
 
     this.hp = this.stats.hp
     this.lootValue = miniboss ? base.loot * 5 : base.loot
@@ -74,8 +101,29 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar = scene.add.graphics().setDepth(6)
   }
 
+  hpPct(): number { return this.hp / this.stats.hp }
+
+  get enemyType(): EnemyType { return this._type }
+
+  hasStatus(id: string): boolean {
+    return this._statusEffects.some(e => e.id === id && e.duration > 0)
+  }
+
   setWallChecker(fn: (x1: number, y1: number, x2: number, y2: number) => boolean) {
     this._wallChecker = fn
+  }
+
+  setBlinded(ms: number) { this._blindedTimer = Math.max(this._blindedTimer, ms) }
+
+  applyStatus(effect: StatusEffect) {
+    applyStatus(this._statusEffects, effect)
+    // Flash tint to indicate status applied
+    const tintMap: Record<string, number> = { bleed: 0xff2222, stagger: 0xaaaaff, cripple: 0x8888ff, slow: 0x4488ff, poison: 0x44bb44 }
+    const tint = tintMap[effect.id]
+    if (tint && this.active) {
+      this.setTint(tint)
+      this.scene.time.delayedCall(250, () => { if (this.active) this.clearTint() })
+    }
   }
 
   update(delta: number, player: Player) {
@@ -83,6 +131,39 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.atkCooldown = Math.max(0, this.atkCooldown - delta)
     this.burstCooldown = Math.max(0, this.burstCooldown - delta)
     this.timeAccum += delta
+    this._statusTintTimer = Math.max(0, this._statusTintTimer - delta)
+
+    // Blinded: wander randomly instead of chasing
+    if (this._blindedTimer > 0) {
+      this._blindedTimer -= delta
+      const randAngle = Math.random() * Math.PI * 2
+      const spd = this.stats.speed * 0.5
+      this.setVelocity(Math.cos(randAngle) * spd, Math.sin(randAngle) * spd)
+      if (this.starLabel) this.starLabel.setPosition(this.x, this.y - 32)
+      this.drawHpBar()
+      return
+    }
+
+    // Tick status effects
+    if (this._statusEffects.length > 0) {
+      const { damage, slowMult } = tickStatuses(this._statusEffects, delta)
+      if (damage > 0) {
+        this.hp -= damage
+        this.drawHpBar()
+        if (this.hp <= 0) {
+          this.hpBar.destroy()
+          this.spawnDeathParticles()
+          this.scene.events.emit('enemy-killed-by-dot', this)
+          this.destroy()
+          return
+        }
+      }
+      // Apply slow — stored for AI velocity calculations
+      this._slowMult = slowMult
+      this._statusEffects = pruneExpired(this._statusEffects)
+    } else {
+      this._slowMult = 1
+    }
 
     const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
 
@@ -94,6 +175,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this._hasAggrod = true
       this.showAggroIndicator()
     }
+
+    // Special type behaviors
+    if (this._type === 'berserker') this.updateBerserker()
+    if (this._type === 'golem')     this.updateGolem(delta, player)
+    if (this._type === 'wraith')    this.updateWraith(delta)
+    if (this._phaseActive) { if (this.starLabel) this.starLabel.setPosition(this.x, this.y - 32); this.drawHpBar(); return }
 
     switch (this.stats.ai) {
       case 'melee':   this.updateMelee(delta, dist, player); break
@@ -110,7 +197,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.aiState === 'idle') { this.setVelocity(0, 0); return }
     if (this.aiState === 'chase') {
       const ang = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
-      this.setVelocity(Math.cos(ang) * this.stats.speed, Math.sin(ang) * this.stats.speed)
+      const spd = this.stats.speed * this._slowMult * this._speedMult
+      this.setVelocity(Math.cos(ang) * spd, Math.sin(ang) * spd)
       this.setFlipX(player.x < this.x)
       return
     }
@@ -124,10 +212,53 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         if (d2 < this.stats.atkRange * 1.3) {
           if (this._wallChecker?.(this.x, this.y, player.x, player.y)) return
           this.showSwingArc(player)
-          player.takeDamage(this.stats.dmg)
+          if (!player.smokeActive) player.takeDamage(Math.round(this.stats.dmg * this._dmgMult))
           this.setTint(0xff8800)
-          this.scene.time.delayedCall(110, () => this.active && this.clearTint())
+          this.scene.time.delayedCall(110, () => this.active && (TINT[this._type] ? this.setTint(TINT[this._type]!) : this.clearTint()))
         }
+      })
+    }
+  }
+
+  private updateBerserker() {
+    if (this._berserkMode) return
+    if (this.hp / this.stats.hp < 0.30) {
+      this._berserkMode = true
+      this._speedMult = 1.6
+      this._dmgMult   = 1.4
+      this.setTint(0xff2200)
+      this.scene.tweens.add({ targets: this, alpha: 0.65, duration: 200, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
+    }
+  }
+
+  private updateGolem(delta: number, player: Player) {
+    this._stompTimer -= delta
+    if (this._stompTimer <= 0) {
+      this._stompTimer = 4000
+      const d = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
+      const ring = this.scene.add.circle(this.x, this.y, 8, 0x886644, 0)
+      ring.setDepth(9).setStrokeStyle(3, 0xffcc44, 0.9)
+      this.scene.tweens.add({
+        targets: ring, scaleX: 7.5, scaleY: 7.5, alpha: 0, duration: 400,
+        onComplete: () => { if (ring.active) ring.destroy() },
+      })
+      if (d < 60) player.takeDamage(Math.round(this.stats.dmg * 0.8))
+    }
+  }
+
+  private updateWraith(delta: number) {
+    this._phaseTimer -= delta
+    if (this._phaseTimer <= 0 && !this._phaseActive) {
+      this._phaseActive = true
+      this.setAlpha(0.25)
+      ;(this.body as Phaser.Physics.Arcade.Body).enable = false
+      this.setVelocity(0, 0)
+      this.scene.time.delayedCall(1200, () => {
+        if (!this.active) return
+        this._phaseActive = false
+        this._phaseTimer = 3000 + Math.random() * 2000
+        this.setAlpha(0.85)
+        ;(this.body as Phaser.Physics.Arcade.Body).enable = true
       })
     }
   }
@@ -147,13 +278,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const ang = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y)
     const sine = Math.sin(this.timeAccum * 0.004) * 90
     const perp = ang + Math.PI / 2
+    const spd = this.stats.speed * this._slowMult * this._speedMult
     this.setVelocity(
-      Math.cos(ang) * this.stats.speed + Math.cos(perp) * sine,
-      Math.sin(ang) * this.stats.speed + Math.sin(perp) * sine
+      Math.cos(ang) * spd + Math.cos(perp) * sine * this._slowMult,
+      Math.sin(ang) * spd + Math.sin(perp) * sine * this._slowMult
     )
     if (dist < this.stats.atkRange && this.atkCooldown === 0) {
       this.atkCooldown = this.stats.atkCd
-      if (!this._wallChecker?.(this.x, this.y, player.x, player.y)) {
+      if (!this._wallChecker?.(this.x, this.y, player.x, player.y) && !player.smokeActive) {
         player.takeDamage(this.stats.dmg)
       }
     }
@@ -207,6 +339,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       const d2 = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y)
       if (d2 < dist * 1.2 && !this._wallChecker?.(this.x, this.y, player.x, player.y)) {
         player.takeDamage(this.stats.dmg)
+        player.applyStatus(SLOW())
       }
     })
   }
@@ -227,15 +360,16 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number, knockbackAngle = 0, knockbackForce = 0): boolean {
     this.hp -= amount
-    if (knockbackForce > 0) {
-      const force = knockbackForce * this.stats.kbResist
+    if (knockbackForce > 0 && this.stats.kbResist > 0) {
+      const force = Math.min(knockbackForce, 200) * this.stats.kbResist
       ;(this.body as Phaser.Physics.Arcade.Body).setVelocity(
         Math.cos(knockbackAngle) * force,
         Math.sin(knockbackAngle) * force
       )
     }
     this.setTint(0xff4444)
-    this.scene.time.delayedCall(100, () => this.active && (this.isMiniboss ? this.setTint(0xffcc00) : this.clearTint()))
+    const restoreTint = TINT[this._type] ?? (this.isMiniboss ? 0xffcc00 : 0)
+    this.scene.time.delayedCall(100, () => { if (this.active) { if (restoreTint) this.setTint(restoreTint); else this.clearTint() } })
     this.drawHpBar()
     if (this.hp <= 0) {
       this.hpBar.destroy()
@@ -256,23 +390,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   private spawnDeathParticles() {
-    const colors = this.isMiniboss ? [0xffcc00, 0xff8800, 0xffff44] : [0xff4444, 0xcc2222, 0xff8800]
-    for (let i = 0; i < 5; i++) {
-      const angle = (Math.PI * 2 / 5) * i + Math.random() * 0.4
-      const speed = 40 + Math.random() * 60
+    const baseColors = this.isMiniboss ? [0xffcc00, 0xff8800, 0xffff44]
+      : this._type === 'wraith' ? [0xaa44ff, 0xcc66ff, 0x8822cc]
+      : this._type === 'golem'  ? [0xffcc00, 0x886644, 0xaabbcc]
+      : [0xff4444, 0xcc2222, 0xff8800]
+    const count = 8
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i + Math.random() * 0.4
+      const speed = 45 + Math.random() * 70
       const p = this.scene.add.graphics().setDepth(15)
-      p.fillStyle(colors[i % colors.length], 1)
+      p.fillStyle(baseColors[i % baseColors.length], 1)
       p.fillRect(-3, -3, 6, 6)
       p.setPosition(this.x, this.y)
       this.scene.tweens.add({ targets: p,
         x: this.x + Math.cos(angle) * speed, y: this.y + Math.sin(angle) * speed,
-        alpha: 0, duration: 320, ease: 'Power2',
+        alpha: 0, duration: 360, ease: 'Power2',
         onComplete: () => { if (p.active) p.destroy() } })
     }
   }
 
-  rollDrop(): ItemDef | null {
-    const rarity = rollRarity(this.stats.tier, this.stats.dropChance)
+  rollDrop(legendaryBonus = 0): ItemDef | null {
+    const rarity = rollRarity(this.stats.tier, this.stats.dropChance, legendaryBonus)
     if (!rarity) return null
     const pool = Math.random() < 0.5 ? WEAPON_ITEMS : ARMOR_ITEMS
     const rarityPool = pool.filter(i => i.rarity === rarity)

@@ -63,6 +63,16 @@ export class Inventory {
     }
   }
 
+  getActiveSets(): string[] {
+    const counts = new Map<string, number>()
+    for (const item of this.slots.values()) {
+      if (item.setId) counts.set(item.setId, (counts.get(item.setId) ?? 0) + 1)
+    }
+    const active: string[] = []
+    for (const [id, count] of counts) { if (count >= 2) active.push(id) }
+    return active
+  }
+
   getStats(): EquipStats {
     const s: EquipStats = {
       maxHpBonus: 0, armor: 0, speedBonus: 0,

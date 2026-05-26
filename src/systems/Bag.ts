@@ -4,9 +4,13 @@ export const BAG_CAPACITY = 20
 
 export class Bag {
   private items: ItemDef[] = []
+  private _capacityBonus = 0
 
+  setCapacityBonus(bonus: number) { this._capacityBonus = bonus }
+  get capacity(): number { return BAG_CAPACITY + this._capacityBonus }
+  get capacityBonus(): number { return this._capacityBonus }
   get usedCells(): number { return this.items.reduce((s, i) => s + i.bagSize, 0) }
-  get freeCells(): number { return BAG_CAPACITY - this.usedCells }
+  get freeCells(): number { return this.capacity - this.usedCells }
 
   canAdd(item: ItemDef): boolean { return this.freeCells >= item.bagSize }
 

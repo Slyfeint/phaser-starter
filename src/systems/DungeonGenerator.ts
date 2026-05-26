@@ -17,6 +17,10 @@ export interface DoorPosition {
   x: number; y: number
 }
 
+export interface PillarPosition {
+  x: number; y: number
+}
+
 export interface DungeonData {
   tiles: number[][]
   rooms: Room[]
@@ -26,8 +30,10 @@ export interface DungeonData {
   stairsRoomIdx: number
   shopRoomIdx: number
   minibossRoomIdx: number
+  eventRoomIdx: number
   hazards: HazardSpawn[]
   doors: DoorPosition[]
+  pillars: PillarPosition[]
 }
 
 function ri(min: number, max: number) {
@@ -35,11 +41,19 @@ function ri(min: number, max: number) {
 }
 
 function buildTunnel(tiles: number[][], r1: Room, r2: Room, doors: DoorPosition[]) {
+  const rows = tiles.length
+  const cols = tiles[0].length
   const mnx = Math.min(r1.cx, r2.cx), mxx = Math.max(r1.cx, r2.cx)
-  for (let tx = mnx; tx <= mxx; tx++) tiles[r1.cy][tx] = TILE_FLOOR
+  for (let tx = mnx; tx <= mxx; tx++) {
+    tiles[r1.cy][tx] = TILE_FLOOR
+    if (r1.cy + 1 < rows) tiles[r1.cy + 1][tx] = TILE_FLOOR
+  }
   const mny = Math.min(r1.cy, r2.cy), mxy = Math.max(r1.cy, r2.cy)
-  for (let ty = mny; ty <= mxy; ty++) tiles[ty][r2.cx] = TILE_FLOOR
-  // Place door at room entrance — where the corridor meets the r2 boundary
+  for (let ty = mny; ty <= mxy; ty++) {
+    tiles[ty][r2.cx] = TILE_FLOOR
+    if (r2.cx + 1 < cols) tiles[ty][r2.cx + 1] = TILE_FLOOR
+  }
+  // Door at r2 entry — where the corridor meets the r2 boundary
   let dx: number, dy: number
   if (r1.cy < r2.y) {
     dx = r2.cx; dy = r2.y                  // corridor enters r2 from above
@@ -53,6 +67,19 @@ function buildTunnel(tiles: number[][], r1: Room, r2: Room, doors: DoorPosition[
     dx = r2.cx; dy = r2.cy                 // centers overlap — fallback
   }
   doors.push({ x: dx, y: dy })
+
+  // Door at r1 exit — symmetric, where the corridor leaves r1
+  let ex1: number, ey1: number
+  if (r2.cx !== r1.cx) {
+    // Corridor exits r1 horizontally
+    ex1 = r2.cx > r1.cx ? r1.x + r1.w - 1 : r1.x
+    ey1 = r1.cy
+  } else {
+    // Purely vertical corridor, exits r1 top or bottom
+    ex1 = r1.cx
+    ey1 = r2.cy > r1.cy ? r1.y + r1.h - 1 : r1.y
+  }
+  doors.push({ x: ex1, y: ey1 })
 }
 
 export function generateDungeon(
@@ -112,6 +139,18 @@ export function generateDungeon(
     }
   }
 
+  // Event room: 25% chance, one random non-special mid room
+  let eventRoomIdx = -1
+  if (Math.random() < 0.25) {
+    const evCandidates: number[] = []
+    for (let i = 1; i < rooms.length - 2; i++) {
+      if (i !== shopRoomIdx && i !== minibossRoomIdx) evCandidates.push(i)
+    }
+    if (evCandidates.length > 0) {
+      eventRoomIdx = evCandidates[Math.floor(Math.random() * evCandidates.length)]
+    }
+  }
+
   // Place stairs tile in stairs room
   const sr = rooms[stairsRoomIdx]
   tiles[sr.cy][sr.cx] = TILE_STAIRS
@@ -141,5 +180,19 @@ export function generateDungeon(
     hazards.push({ x: col, y: row, type: hazardTypes[i % hazardTypes.length] })
   }
 
-  return { tiles, rooms, cols, rows, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx, hazards, doors }
+  // Pillars: 4 inner-corner pillars in large non-special rooms
+  const pillars: PillarPosition[] = []
+  rooms.forEach((r, idx) => {
+    if (specialRooms.has(idx)) return
+    if (r.w >= 8 && r.h >= 7) {
+      pillars.push(
+        { x: r.x + 2, y: r.y + 2 },
+        { x: r.x + r.w - 3, y: r.y + 2 },
+        { x: r.x + 2, y: r.y + r.h - 3 },
+        { x: r.x + r.w - 3, y: r.y + r.h - 3 },
+      )
+    }
+  })
+
+  return { tiles, rooms, cols, rows, bossRoomIdx, stairsRoomIdx, shopRoomIdx, minibossRoomIdx, eventRoomIdx, hazards, doors, pillars }
 }

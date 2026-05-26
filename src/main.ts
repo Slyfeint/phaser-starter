@@ -7,6 +7,9 @@ import { DungeonScene } from './scenes/DungeonScene'
 import { GameOver } from './scenes/GameOver'
 import { SettingsScene } from './scenes/SettingsScene'
 import { PauseScene } from './scenes/PauseScene'
+import { SkillScene } from './scenes/SkillScene'
+import { MarketplaceScene } from './scenes/MarketplaceScene'
+import { DailyChallengeScene } from './scenes/DailyChallengeScene'
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -25,12 +28,13 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [Boot, Preload, MainMenu, LobbyScene, DungeonScene, GameOver, SettingsScene, PauseScene],
+  scene: [Boot, Preload, MainMenu, LobbyScene, DungeonScene, GameOver, SettingsScene, PauseScene, SkillScene, MarketplaceScene, DailyChallengeScene],
 }
 
 const game = new Phaser.Game(config)
 
 game.events.once('ready', () => {
+  document.body.style.touchAction = 'none'
   const stored = parseFloat(localStorage.getItem('ui_zoom') ?? '')
   const zoom = isNaN(stored) ? Math.min(window.innerWidth / 480, window.innerHeight / 854) : stored
   applyCanvasZoom(zoom)

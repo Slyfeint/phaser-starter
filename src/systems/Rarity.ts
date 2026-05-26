@@ -27,7 +27,7 @@ const RARITY_ARMOR_MULT: Record<Rarity, number> = {
 export function rarityDamageMult(r: Rarity): number { return RARITY_DMG_MULT[r] }
 export function rarityArmorMult(r: Rarity): number  { return RARITY_ARMOR_MULT[r] }
 
-export function rollRarity(tier: EnemyTier, dropChance: number): Rarity | null {
+export function rollRarity(tier: EnemyTier, dropChance: number, legendaryBonus = 0): Rarity | null {
   if (Math.random() > dropChance) return null
   const r = Math.random() * 100
   if (tier === 'boss') {
@@ -43,8 +43,15 @@ export function rollRarity(tier: EnemyTier, dropChance: number): Rarity | null {
     if (r < 50) return 'uncommon'
     return 'common'
   }
-  if (r < 1)  return 'epic'
-  if (r < 11) return 'rare'
-  if (r < 31) return 'uncommon'
-  return 'common'
+  let rarity: Rarity
+  if (r < 1)  rarity = 'epic'
+  else if (r < 11) rarity = 'rare'
+  else if (r < 31) rarity = 'uncommon'
+  else rarity = 'common'
+  // Fortune skill: 20% chance to upgrade one tier
+  if (legendaryBonus > 0 && Math.random() < legendaryBonus) {
+    const up: Partial<Record<Rarity, Rarity>> = { common: 'uncommon', uncommon: 'rare', rare: 'epic', epic: 'legendary' }
+    rarity = up[rarity] ?? rarity
+  }
+  return rarity
 }
